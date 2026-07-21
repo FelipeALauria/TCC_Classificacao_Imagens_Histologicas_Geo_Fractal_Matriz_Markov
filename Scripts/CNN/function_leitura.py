@@ -49,7 +49,8 @@ def trans_img_escala_cinza(lista_imagens):
         imagens_cinza.append(np.array(img_cinza))
     return imagens_cinza
 
-# Leitura dos Reshapes feitos no matlab
+
+## Leitura dos Reshapes feitos no matlab
 
 # Recurrence Plot 
 def le_recplot(source):
