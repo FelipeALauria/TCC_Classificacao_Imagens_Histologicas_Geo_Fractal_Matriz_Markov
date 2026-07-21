@@ -52,9 +52,21 @@ def trans_img_escala_cinza(lista_imagens):
 # Leitura dos Reshapes feitos no matlab
 
 # Recurrence Plot 
-def le_recplot():
-    return 2
+def le_recplot(source):
+    recplot = []
+    files = sum(1 for file in Path(source).glob('*.png') if file.is_file())
+    for i in range(1, files + 1):
+        img = Image.open(Path(source) / f'RecPlot ({i}).png')
+        img_array = np.array(img)
+        recplot.append(img_array)
+    return recplot
 
 # markov transition field
-def le_mtf():
-    return 1
+def le_mtf(source):
+    mtf = []
+    files = sum(1 for file in Path(source).glob('*.png') if file.is_file())
+    for i in range(1, files + 1):
+        img = Image.open(Path(source) / f'MTF ({i}).png')
+        img_array = np.array(img)
+        mtf.append(img_array)
+    return mtf
