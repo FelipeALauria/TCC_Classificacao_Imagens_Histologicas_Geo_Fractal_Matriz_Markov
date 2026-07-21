@@ -35,7 +35,7 @@ if qtd_visualizar > 0:
     plt.tight_layout()
     plt.show()
 else:
-    print("Nenhuma imagem carregada para visualizacao.")
+    print("Nenhuma imagem carregada para visualizacao")
 
 #Leitura das imagens histólogicas
 
