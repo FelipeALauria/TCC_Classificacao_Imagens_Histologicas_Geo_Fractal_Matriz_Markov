@@ -10,32 +10,10 @@ def le_imagens(source):
     base_path = Path(source)
     files = sum(1 for file in base_path.glob('*.png') if file.is_file())
 
-    print(f"Número total de arquivos encontrados: {files}" )
-
     for i in range(1, files + 1):
         img = Image.open(base_path / f'Benign ({i}).png')
         img_array = np.array(img)
         imagens.append(img_array)
-
-    print()
-    print("Imagens:")
-
-    qtd_visualizar = min(5, len(imagens))
-
-    if qtd_visualizar > 0:
-        fig, axes = plt.subplots(1, qtd_visualizar, figsize=(4 * qtd_visualizar, 4))
-        if qtd_visualizar == 1:
-            axes = [axes]
-
-        for i in range(qtd_visualizar):
-            axes[i].imshow(imagens[i])
-            axes[i].set_title(f"Imagem {i + 1}")
-            axes[i].axis("off")
-
-        plt.tight_layout()
-        plt.show()
-    else:
-        print("Nenhuma imagem carregada para visualizacao")
 
     return imagens
 
@@ -53,21 +31,21 @@ def trans_img_escala_cinza(lista_imagens):
 ## Leitura dos Reshapes feitos no matlab
 
 # Recurrence Plot 
-def le_recplot(source):
+def le_recplot(source, recplot_size):
     recplot = []
-    files = sum(1 for file in Path(source).glob('*.png') if file.is_file())
-    for i in range(1, files + 1):
-        img = Image.open(Path(source) / f'RecPlot ({i}).png')
+    for i in range(1, 75):
+        name = f'{i}_'+ str(recplot_size) + '.png'
+        img = Image.open(Path(source) / name)
         img_array = np.array(img)
         recplot.append(img_array)
     return recplot
 
 # markov transition field
-def le_mtf(source):
+def le_mtf(source, x_maxL):
     mtf = []
-    files = sum(1 for file in Path(source).glob('*.png') if file.is_file())
-    for i in range(1, files + 1):
-        img = Image.open(Path(source) / f'MTF ({i}).png')
+    for i in range(1, 75):
+        name = f'{i}_'+ str(x_maxL) + '.png'
+        img = Image.open(Path(source) / name)
         img_array = np.array(img)
         mtf.append(img_array)
     return mtf
