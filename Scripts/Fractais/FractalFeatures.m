@@ -10,7 +10,7 @@
 % lacunarity.m
 
 %Max L value
-maxL = 7;
+maxL = 25;
 
 %Number of images in dataset (change accordingly)
 Num_Img = 150;
@@ -18,12 +18,12 @@ Num_Img = 150;
 %\UCSBB (1).png%
 %%
 %Classe 1
-source='C:\Users\felip\Documents\MATLAB\Scripts e Datasets\Datasets\Imagens Histológicas\LG\2'; %Path where the images are stored
-destination= source; %Path where the .mat file will be saved (can be the same as source)
+source='C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Malignant'; %Path where the images are stored
+destination= 'C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Malignant\maxL25'; %Path where the .mat file will be saved (can be the same as source)
 disp(['Salvando: ', source])
 for n=1:Num_Img %número de imagens da classe
     tic
-original = strcat('Class 2 - (', num2str(n), ').png'); %File name. Must be in the format: 'File_number from 1 to N_.png'. If your images are named differently, rename them or than rewrite this line accordingly
+original = strcat('Malignant (', num2str(n), ').png'); %File name. Must be in the format: 'File_number from 1 to N_.png'. If your images are named differently, rename them or than rewrite this line accordingly
 %.png format is not mandatory. If your images are in a different format, just rewrite the line above to match your format
 
 fullname=fullfile(source,original);
@@ -31,11 +31,11 @@ PIC=imread(fullname);
 disp(['Algoritmos'])
 %PERC
 disp("PercChess")
-%[ChessMaxClusterIndex, ChessMaxPercIndex, ChessMaxMaxClusterIndex, ChessAreaRatioMaxCluster, ChessMaxMaxCluster, ChessSkewnessMaxCluster, ChessAreaMaxCluster, ChessAreaRatioCluster, ChessAreaRatioPerc, ChessMaxCluster, ChessMaxPerc, ChessSkewnessCluster, ChessSkewnessPerc, ChessAreaPerc, ChessAreaCluster, Chessp, Chessg, Chessh] = percChess(PIC,maxL);
+[ChessMaxClusterIndex, ChessMaxPercIndex, ChessMaxMaxClusterIndex, ChessAreaRatioMaxCluster, ChessMaxMaxCluster, ChessSkewnessMaxCluster, ChessAreaMaxCluster, ChessAreaRatioCluster, ChessAreaRatioPerc, ChessMaxCluster, ChessMaxPerc, ChessSkewnessCluster, ChessSkewnessPerc, ChessAreaPerc, ChessAreaCluster, Chessp, Chessg, Chessh] = percChess(PIC,maxL);
 disp("PercEucl")
-%[EuclMaxClusterIndex, EuclMaxPercIndex, EuclMaxMaxClusterIndex, EuclAreaRatioMaxCluster, EuclMaxMaxCluster, EuclSkewnessMaxCluster, EuclAreaMaxCluster, EuclAreaRatioCluster, EuclAreaRatioPerc, EuclMaxCluster, EuclMaxPerc, EuclSkewnessCluster, EuclSkewnessPerc, EuclAreaPerc, EuclAreaCluster, Euclp, Euclg, Euclh] = percEucl(PIC,maxL);
+[EuclMaxClusterIndex, EuclMaxPercIndex, EuclMaxMaxClusterIndex, EuclAreaRatioMaxCluster, EuclMaxMaxCluster, EuclSkewnessMaxCluster, EuclAreaMaxCluster, EuclAreaRatioCluster, EuclAreaRatioPerc, EuclMaxCluster, EuclMaxPerc, EuclSkewnessCluster, EuclSkewnessPerc, EuclAreaPerc, EuclAreaCluster, Euclp, Euclg, Euclh] = percEucl(PIC,maxL);
 disp("PercManh")
-%[ManhMaxClusterIndex, ManhMaxPercIndex, ManhMaxMaxClusterIndex, ManhAreaRatioMaxCluster, ManhMaxMaxCluster, ManhSkewnessMaxCluster, ManhAreaMaxCluster, ManhAreaRatioCluster, ManhAreaRatioPerc, ManhMaxCluster, ManhMaxPerc, ManhSkewnessCluster, ManhSkewnessPerc, ManhAreaPerc, ManhAreaCluster, Manhp, Manhg, Manhh] = percManh(PIC,maxL);
+[ManhMaxClusterIndex, ManhMaxPercIndex, ManhMaxMaxClusterIndex, ManhAreaRatioMaxCluster, ManhMaxMaxCluster, ManhSkewnessMaxCluster, ManhAreaMaxCluster, ManhAreaRatioCluster, ManhAreaRatioPerc, ManhMaxCluster, ManhMaxPerc, ManhSkewnessCluster, ManhSkewnessPerc, ManhAreaPerc, ManhAreaCluster, Manhp, Manhg, Manhh] = percManh(PIC,maxL);
 
 disp("LAC e DF")
 %Chessboard LAC FD
@@ -91,7 +91,7 @@ mdl = fitlm(X, Y, 'RobustOpts', 'on');
 ManhFD = mdl.Coefficients.Estimate(2);
 
 clear PIC;     
-final=strcat(num2str(n),'.mat');
+final=strcat(num2str(n),'_maxL25.mat');
 filename=fullfile(destination,final);
 disp(['Salvando: ', filename])
 save(filename);
