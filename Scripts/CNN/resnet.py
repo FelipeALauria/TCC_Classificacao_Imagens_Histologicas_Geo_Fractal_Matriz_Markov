@@ -97,11 +97,11 @@ list_gasf = list_gasf_b + list_gasf_m
 list_gadf = list_gadf_b + list_gadf_m
 labels = np.array(labels_b + labels_m, dtype=np.int64)
 
-print("Número de RecPlots carregados:", len(list_recplot))
-print("Número de MTFs carregados:", len(list_mtf))
-print("Número de GASFs carregados:", len(list_gasf))
-print("Número de GADFs carregados:", len(list_gadf))
-print("Número de rótulos:", len(labels))
+# print("Número de RecPlots carregados:", len(list_recplot))
+# print("Número de MTFs carregados:", len(list_mtf))
+# print("Número de GASFs carregados:", len(list_gasf))
+# print("Número de GADFs carregados:", len(list_gadf))
+# print("Número de rótulos:", len(labels))
 
 
 TAMANHO_PADRAO = (224, 224) 
