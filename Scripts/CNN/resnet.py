@@ -10,33 +10,33 @@ from PIL import Image
 from sklearn.model_selection import train_test_split
 
 
-BASE_DIR = Path(r"C:/Users/felip/Desktop/Facul/TCC/Scripts_Datasets/Datasets/Imagens Histológicas/CR")
+source = Path(r"C:/Users/felip/Desktop/Facul/TCC/Scripts_Datasets/Datasets/Imagens Histológicas/CR")
 
 size_maxL = "maxL15"
 
 CLASSES = {
     "Benign": {
         "label": 0,
-        "recplot_dir": BASE_DIR / "Benign" / size_maxL,
-        "mtf_dir": BASE_DIR / "Benign" / size_maxL,
-        "gasf_dir": BASE_DIR / "Benign" / size_maxL,
-        "gadf_dir": BASE_DIR / "Benign" / size_maxL,
+        "recplot_dir": source / "Benign" / size_maxL,
+        "mtf_dir": source / "Benign" / size_maxL,
+        "gasf_dir": source / "Benign" / size_maxL,
+        "gadf_dir": source / "Benign" / size_maxL,
         "gasf_prefix": "Benign",
         "gadf_prefix": "Benign",
     },
     "Malignant": {
         "label": 1,
-        "recplot_dir": BASE_DIR / "Malignant" / size_maxL,
-        "mtf_dir": BASE_DIR / "Malignant" / size_maxL,
-        "gasf_dir": BASE_DIR / "Malignant" / size_maxL,
-        "gadf_dir": BASE_DIR / "Malignant" / size_maxL,
+        "recplot_dir": source / "Malignant" / size_maxL,
+        "mtf_dir": source / "Malignant" / size_maxL,
+        "gasf_dir": source / "Malignant" / size_maxL,
+        "gadf_dir": source / "Malignant" / size_maxL,
         "gasf_prefix": "Malignant",
         "gadf_prefix": "Malignant",
     },
 }
 
 rec_plot_size = "RecPlot_512x512"
-MTF_size = "MTF_Q8_N35"
+MTF_sizes = ["MTF_Q8_N35", "MTF_Q16_N35", "MTF_Q32_N35", "MTF_Q64_N35"]
 
 def encontrar_arquivo(diretorio, candidatos):
     for nome in candidatos:
