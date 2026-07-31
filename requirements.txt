@@ -1,0 +1,13 @@
+# Python dependencies
+numpy>=1.24.0
+matplotlib>=3.8.0
+Pillow>=10.0.0
+scikit-learn>=1.3.0
+torch>=2.2.0
+torchvision>=0.17.0
+
+# MATLAB dependencies (not installed via pip)
+# - MATLAB
+# - Image Processing Toolbox
+# - Parallel Computing Toolbox  (para uso de paralelismo com parfor, parfeval, etc.)
+# - Statistics and Machine Learning Toolbox (opcional, dependendo dos scripts)
