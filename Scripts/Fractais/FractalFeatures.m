@@ -19,8 +19,7 @@ Num_Img = 150;
 %%
 %Classe 1
 source='C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Malignant'; %Path where the images are stored
-destination= 'C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Malignant\maxL25'; %Path where the .mat file will be saved (can be the same as source)
-disp(['Salvando: ', source])
+destination= 'C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Malignant\maxL15'; %Path where the .mat file will be saved (can be the same as source)
 for n=1:Num_Img %número de imagens da classe
     tic
 original = strcat('Malignant (', num2str(n), ').png'); %File name. Must be in the format: 'File_number from 1 to N_.png'. If your images are named differently, rename them or than rewrite this line accordingly
@@ -28,16 +27,11 @@ original = strcat('Malignant (', num2str(n), ').png'); %File name. Must be in th
 
 fullname=fullfile(source,original);
 PIC=imread(fullname);
-disp(['Algoritmos'])
 %PERC
-disp("PercChess")
 [ChessMaxClusterIndex, ChessMaxPercIndex, ChessMaxMaxClusterIndex, ChessAreaRatioMaxCluster, ChessMaxMaxCluster, ChessSkewnessMaxCluster, ChessAreaMaxCluster, ChessAreaRatioCluster, ChessAreaRatioPerc, ChessMaxCluster, ChessMaxPerc, ChessSkewnessCluster, ChessSkewnessPerc, ChessAreaPerc, ChessAreaCluster, Chessp, Chessg, Chessh] = percChess(PIC,maxL);
-disp("PercEucl")
 [EuclMaxClusterIndex, EuclMaxPercIndex, EuclMaxMaxClusterIndex, EuclAreaRatioMaxCluster, EuclMaxMaxCluster, EuclSkewnessMaxCluster, EuclAreaMaxCluster, EuclAreaRatioCluster, EuclAreaRatioPerc, EuclMaxCluster, EuclMaxPerc, EuclSkewnessCluster, EuclSkewnessPerc, EuclAreaPerc, EuclAreaCluster, Euclp, Euclg, Euclh] = percEucl(PIC,maxL);
-disp("PercManh")
 [ManhMaxClusterIndex, ManhMaxPercIndex, ManhMaxMaxClusterIndex, ManhAreaRatioMaxCluster, ManhMaxMaxCluster, ManhSkewnessMaxCluster, ManhAreaMaxCluster, ManhAreaRatioCluster, ManhAreaRatioPerc, ManhMaxCluster, ManhMaxPerc, ManhSkewnessCluster, ManhSkewnessPerc, ManhAreaPerc, ManhAreaCluster, Manhp, Manhg, Manhh] = percManh(PIC,maxL);
 
-disp("LAC e DF")
 %Chessboard LAC FD
 ProbMatrix = pmrChess(PIC, maxL);
 ChessLAC = lacunarity(ProbMatrix);
@@ -55,7 +49,6 @@ Y = y.';
 mdl = fitlm(X, Y, 'RobustOpts', 'on');
 ChessFD = mdl.Coefficients.Estimate(2);
 
-disp(['prob_matrix'])
 %Euclidian LAC FD
 ProbMatrix = pmrEucl(PIC, maxL);
 EuclLAC = lacunarity(ProbMatrix);
@@ -97,4 +90,4 @@ disp(['Salvando: ', filename])
 save(filename);
 disp('Salvou!!')
 toc
-end
+end 
