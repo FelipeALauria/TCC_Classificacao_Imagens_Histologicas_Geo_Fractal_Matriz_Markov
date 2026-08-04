@@ -4,13 +4,15 @@
 % pmrChess.m
 % pmrEucl.m
 % pmrManh.m
-% percChess.m
+% percChess.m5++++++++++++++++++++++++++++++++++++++++
 % percEucl.m
 % percManh.m
 % lacunarity.m
 
 %Max L value
-maxL = 25;
+maxL = 41;
+
+disp(maxL)
 
 %Number of images in dataset (change accordingly)
 Num_Img = 150;
@@ -19,7 +21,7 @@ Num_Img = 150;
 %%
 %Classe 1
 source='C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Malignant'; %Path where the images are stored
-destination= 'C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Malignant\maxL15'; %Path where the .mat file will be saved (can be the same as source)
+destination= 'C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Malignant\maxL41'; %Path where the .mat file will be saved (can be the same as source)
 for n=1:Num_Img %número de imagens da classe
     tic
 original = strcat('Malignant (', num2str(n), ').png'); %File name. Must be in the format: 'File_number from 1 to N_.png'. If your images are named differently, rename them or than rewrite this line accordingly
@@ -49,7 +51,7 @@ Y = y.';
 mdl = fitlm(X, Y, 'RobustOpts', 'on');
 ChessFD = mdl.Coefficients.Estimate(2);
 
-%Euclidian LAC FD
+%Euclidian LAC FDMilkySimss
 ProbMatrix = pmrEucl(PIC, maxL);
 EuclLAC = lacunarity(ProbMatrix);
 r = 3:2:maxL;
@@ -65,7 +67,7 @@ X = x.';
 Y = y.';
 mdl = fitlm(X, Y, 'RobustOpts', 'on');
 EuclFD = mdl.Coefficients.Estimate(2);
-
+gg
 %Manhattan LAC FD
 ProbMatrix = pmrManh(PIC, maxL);
 ManhLAC = lacunarity(ProbMatrix);
@@ -84,7 +86,7 @@ mdl = fitlm(X, Y, 'RobustOpts', 'on');
 ManhFD = mdl.Coefficients.Estimate(2);
 
 clear PIC;     
-final=strcat(num2str(n),'_maxL25.mat');
+final=strcat(num2str(n),'_maxL41.mat');
 filename=fullfile(destination,final);
 disp(['Salvando: ', filename])
 save(filename);
