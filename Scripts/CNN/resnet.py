@@ -18,7 +18,7 @@ from sklearn.metrics import (
     roc_curve,
 )
 
-from function_leitura import (
+from Scripts_Datasets.Scripts.CNN.functions import (
     carregar_classe,
     padronizar,
     montar_input,
