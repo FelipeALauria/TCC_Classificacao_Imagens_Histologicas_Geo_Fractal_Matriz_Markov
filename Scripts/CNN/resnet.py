@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 
 import numpy as np
@@ -6,8 +5,6 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torchvision.models as models
-from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
@@ -19,6 +16,14 @@ from sklearn.metrics import (
     confusion_matrix,
     classification_report,
     roc_curve,
+)
+
+from function_leitura import (
+    carregar_classe,
+    padronizar,
+    montar_input,
+    criar_resnet50_nch,
+    salva_metrica_csv,
 )
 
 # ============================================================
@@ -34,6 +39,10 @@ MTF_size = MTF_sizes[0]
 
 rec_plot_size = "RecPlot_512x512"
 
+# Não é mais preciso declarar prefixo de nome de arquivo (img_prefix,
+# gasf_prefix, gadf_prefix): carregar_classe agora indexa cada pasta
+# automaticamente pelo número no nome do arquivo, então basta apontar
+# "source" para outro dataset e mudar os nomes das subpastas se preciso.
 CLASSES = {
     "Benign": {
         "label": 0,
@@ -42,9 +51,6 @@ CLASSES = {
         "mtf_dir": source / "Benign" / "MTF" / size_maxL,
         "gasf_dir": source / "Benign" /  "GASF" / size_maxL,
         "gadf_dir": source / "Benign" / "GADF" / size_maxL,
-        "img_prefix": "Benign",
-        "gasf_prefix": "Benign",
-        "gadf_prefix": "Benign",
     },
     "Malignant": {
         "label": 1,
@@ -53,9 +59,6 @@ CLASSES = {
         "mtf_dir": source / "Malignant" / "MTF" / size_maxL,
         "gasf_dir": source / "Malignant" /  "GASF" / size_maxL,
         "gadf_dir": source / "Malignant" / "GADF" / size_maxL,
-        "img_prefix": "Malignant",
-        "gasf_prefix": "Malignant",
-        "gadf_prefix": "Malignant",
     },
 }
 
@@ -69,62 +72,12 @@ LR = 1e-4
 # LEITURA DOS DADOS
 # ============================================================
 
-def encontrar_arquivo(diretorio, candidatos):
-    for nome in candidatos:
-        caminho = diretorio / nome
-        if caminho.exists():
-            return caminho
-    raise FileNotFoundError(f"Nenhum arquivo encontrado em {diretorio} para: {candidatos}")
-
-
-def carregar_classe(configuracao_classe):
-    indices = []
-    for caminho in sorted(configuracao_classe["recplot_dir"].glob(f"*_{rec_plot_size}.png")):
-        correspondencia = re.match(r"^(\d+)_", caminho.name)
-        if correspondencia:
-            indices.append(int(correspondencia.group(1)))
-
-    list_img, list_recplot, list_mtf, list_gasf, list_gadf, labels = [], [], [], [], [], []
-
-    for indice in indices:
-        img_path = encontrar_arquivo(
-            configuracao_classe["img_dir"],
-            [
-                f"{configuracao_classe['img_prefix']} ({indice}).png",
-                f"{configuracao_classe['img_prefix']}_{indice}.png",
-            ],
-        )
-        recplot_path = configuracao_classe["recplot_dir"] / f"{indice}_{rec_plot_size}.png"
-        mtf_path = configuracao_classe["mtf_dir"] / f"{indice}_{MTF_size}.png"
-        gasf_path = encontrar_arquivo(
-            configuracao_classe["gasf_dir"],
-            [
-                f"{configuracao_classe['gasf_prefix']}_{indice}_gasf.png",
-                f"Benign_{indice}_gasf.png",
-                f"Malignant_{indice}_gasf.png",
-            ],
-        )
-        gadf_path = encontrar_arquivo(
-            configuracao_classe["gadf_dir"],
-            [
-                f"{configuracao_classe['gadf_prefix']}_{indice}_gadf.png",
-                f"Benign_{indice}_gadf.png",
-                f"Malignant_{indice}_gadf.png",
-            ],
-        )
-
-        list_img.append(np.array(Image.open(img_path).convert("L")))
-        list_recplot.append(np.array(Image.open(recplot_path)))
-        list_mtf.append(np.array(Image.open(mtf_path)))
-        list_gasf.append(np.array(Image.open(gasf_path)))
-        list_gadf.append(np.array(Image.open(gadf_path)))
-        labels.append(configuracao_classe["label"])
-
-    return list_img, list_recplot, list_mtf, list_gasf, list_gadf, labels
-
-
-list_img_b, list_recplot_b, list_mtf_b, list_gasf_b, list_gadf_b, labels_b = carregar_classe(CLASSES["Benign"])
-list_img_m, list_recplot_m, list_mtf_m, list_gasf_m, list_gadf_m, labels_m = carregar_classe(CLASSES["Malignant"])
+list_img_b, list_recplot_b, list_mtf_b, list_gasf_b, list_gadf_b, labels_b = carregar_classe(
+    CLASSES["Benign"], rec_plot_size, MTF_size
+)
+list_img_m, list_recplot_m, list_mtf_m, list_gasf_m, list_gadf_m, labels_m = carregar_classe(
+    CLASSES["Malignant"], rec_plot_size, MTF_size
+)
 
 list_img = list_img_b + list_img_m
 list_recplot = list_recplot_b + list_recplot_m
@@ -145,28 +98,7 @@ print("Número de rótulos:", len(labels))
 # MONTAGEM DAS ENTRADAS (imagem original + todos os reshapes)
 # ============================================================
 
-def padronizar(img_array, tamanho=TAMANHO_PADRAO):
-    if img_array.ndim != 2:
-        img_array = img_array[:, :, 0]
-    if img_array.shape != tamanho:
-        img_array = np.array(Image.fromarray(img_array).resize(tamanho, Image.BILINEAR))
-    return img_array
-
-
-def montar_input(img, recplot, mtf, gasf, gadf):
-    entradas = []
-    for im, r, m, g_s, g_d in zip(img, recplot, mtf, gasf, gadf):
-        im = padronizar(im)
-        r = padronizar(r)
-        m = padronizar(m)
-        g_s = padronizar(g_s)
-        g_d = padronizar(g_d)
-        stacked = np.stack([im, r, m, g_s, g_d], axis=0)  # 5 canais
-        entradas.append(stacked)
-    return entradas
-
-
-list_inputs = montar_input(list_img, list_recplot, list_mtf, list_gasf, list_gadf)
+list_inputs = montar_input(list_img, list_recplot, list_mtf, list_gasf, list_gadf, TAMANHO_PADRAO)
 N_CANAIS = list_inputs[0].shape[0]
 print(f"\nNúmero de amostras combinadas ({N_CANAIS} canais):", len(list_inputs))
 
@@ -245,33 +177,6 @@ test_loader = DataLoader(test_ds, batch_size=BATCH_SIZE, shuffle=False)
 # ============================================================
 # MODELO — ResNet50 adaptada para 5 canais
 # ============================================================
-
-def criar_resnet50_nch(in_channels, pretrained=True, num_classes=2):
-    modelo = models.resnet50(weights=models.ResNet50_Weights.DEFAULT if pretrained else None)
-
-    conv1_antigo = modelo.conv1
-    conv1_novo = nn.Conv2d(
-        in_channels=in_channels,
-        out_channels=conv1_antigo.out_channels,
-        kernel_size=conv1_antigo.kernel_size,
-        stride=conv1_antigo.stride,
-        padding=conv1_antigo.padding,
-        bias=(conv1_antigo.bias is not None),
-    )
-
-    if pretrained:
-        with torch.no_grad():
-            media_pesos = conv1_antigo.weight.mean(dim=1, keepdim=True)
-            for c in range(in_channels):
-                if c < 3:
-                    conv1_novo.weight[:, c:c + 1, :, :] = conv1_antigo.weight[:, c:c + 1, :, :]
-                else:
-                    conv1_novo.weight[:, c:c + 1, :, :] = media_pesos
-
-    modelo.conv1 = conv1_novo
-    modelo.fc = nn.Linear(modelo.fc.in_features, num_classes)
-    return modelo
-
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"\nUsando dispositivo: {device}")
@@ -357,6 +262,20 @@ f1 = f1_score(y_true, y_pred)
 auc = roc_auc_score(y_true, y_prob)
 matriz_confusao = confusion_matrix(y_true, y_pred)
 
+COMBINACAO = "img_original+recplot+mtf+gasf+gadf"
+
+id_run = salva_metrica_csv(
+    modelo="resnet50",
+    dataset=source.name,
+    combinacao=COMBINACAO,
+    precisao=precisao,
+    recall=revocacao,
+    f1=f1,
+    acuracia=acuracia,
+    auc=auc,
+    perda_treino=historico_loss_treino[-1],
+)
+
 print("\n===== Métricas no conjunto de teste =====")
 print(f"Acurácia:           {acuracia:.4f}")
 print(f"Precisão:           {precisao:.4f}")
@@ -404,5 +323,6 @@ axes[2].legend()
 axes[2].grid(alpha=0.3)
 
 plt.tight_layout()
-plt.savefig("metricas_resnet" + size_maxL + "_" + MTF_size + "_.png", dpi=150)
+nome_grafico = f"metricas_{source.name}_{COMBINACAO}_run{id_run}.png"
+plt.savefig(nome_grafico, dpi=150)
 plt.show()
