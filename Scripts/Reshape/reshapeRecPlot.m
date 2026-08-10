@@ -1,8 +1,8 @@
 %%Converte os atributos locais salvos no arquivo CSV com uso do script
 %%SaveCSVPercLACDF3Distances em uma imagem de atributos fractais com u-
-%%so da técnica recurrence plot
+%%so da tï¿½cnica recurrence plot
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%input: arquivo CSV com a primeira linha removida, número de amostras
+%%input: arquivo CSV com a primeira linha removida, nï¿½mero de amostras
 %%requer o arquivo cerecurr_y.m
 %%Guilherme Freire Roberto
 
@@ -26,7 +26,7 @@ signalR =  newFeatures(n, :, 1);
 signalG =  newFeatures(n, :, 2);
 signalB =  newFeatures(n, :, 3);
 
-signalR = signalR';
+signalR = salRign';
 signalG = signalG';
 signalB = signalB';
 
