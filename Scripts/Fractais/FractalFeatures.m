@@ -67,7 +67,7 @@ X = x.';
 Y = y.';
 mdl = fitlm(X, Y, 'RobustOpts', 'on');
 EuclFD = mdl.Coefficients.Estimate(2);
-gg
+
 %Manhattan LAC FD
 ProbMatrix = pmrManh(PIC, maxL);
 ManhLAC = lacunarity(ProbMatrix);

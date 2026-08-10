@@ -1,9 +1,4 @@
 function F = build_gadf(x)
-%BUILD_GADF Gera o Gramian Angular Difference Field de um sinal 1D.
-%   F = BUILD_GADF(x) recebe um vetor numérico x e retorna a matriz
-%   GADF (NxN), onde N = length(x). Mono-canal, mesmo padrão do
-%   build_mtf.m: o vetor inteiro é processado de uma vez.
-
     validateattributes(x, {'numeric'}, {'vector', 'nonempty', 'finite'}, 'build_gadf', 'x');
 
     x = x(:);

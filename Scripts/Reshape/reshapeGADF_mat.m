@@ -1,5 +1,5 @@
 function reshapeGADF_mat(source, destination, class_name)
-% RESHAPEGADF_MAT - Gera imagens GADF (mono-canal) a partir dos .mat com atributos fractais
+% RESHAPEGADF_MAT - Gera imagens GADF RGB a partir dos .mat com atributos fractais
 %
 % Entradas:
 %   source      - pasta onde estão os .mat
@@ -25,16 +25,17 @@ for n = 1:Num_Img
     data = load(matName);
     disp(['Carregando: ', matName])
 
-    % Monta o signal completo (mesmo padrão do MTF)
-    signal = [data.ChessLAC, data.EuclLAC, data.ManhLAC, ...
-        data.ChessFD,  data.EuclFD,  data.ManhFD];
-    signal = signal(:);
+    chessSignal = [data.Chessp(:); data.Chessg(:); data.Chessh(:); data.ChessLAC(:); data.Chessnn(:)];
+    euclSignal  = [data.Euclp(:);  data.Euclg(:);  data.Euclh(:);  data.EuclLAC(:);  data.Euclnn(:)];
+    manhSignal  = [data.Manhp(:);  data.Manhg(:);  data.Manhh(:);  data.ManhLAC(:);  data.Manhnn(:)];
 
-    % Gera o GADF
-    F = build_gadf(signal);
+    % Gera um canal para cada distância e empilha como RGB
+    chessChannel = (build_gadf(chessSignal) + 1) / 2;
+    euclChannel  = (build_gadf(euclSignal)  + 1) / 2;
+    manhChannel  = (build_gadf(manhSignal)  + 1) / 2;
 
-    % GADF varia em [-1, 1]; converte para [0, 1] antes de salvar
-    IMG = (F + 1) / 2;
+    IMG = cat(3, chessChannel, euclChannel, manhChannel);
+    IMG = imresize(IMG, [224 224], 'nearest');
 
     imgName = fullfile(destination, ...
         strcat(class_name, '_', num2str(n), '_gadf.png'));

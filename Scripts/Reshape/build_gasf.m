@@ -1,9 +1,4 @@
 function F = build_gasf(x)
-%BUILD_GASF Gera o Gramian Angular Summation Field de um sinal 1D.
-%   F = BUILD_GASF(x) recebe um vetor numérico x e retorna a matriz
-%   GASF (NxN), onde N = length(x). Mono-canal, mesmo padrão do
-%   build_mtf.m: o vetor inteiro é processado de uma vez.
-
     validateattributes(x, {'numeric'}, {'vector', 'nonempty', 'finite'}, 'build_gasf', 'x');
 
     x = x(:);
