@@ -10,18 +10,18 @@
 % lacunarity.m
 
 %Max L value
-maxL = 41;
+maxL = 11;
 
 disp(maxL)
 
 %Number of images in dataset (change accordingly)
-Num_Img = 150;
+Num_Img = 91;
 
 %\UCSBB (1).png%
 %%
 %Classe 1
 source='C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Malignant'; %Path where the images are stored
-destination= 'C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Malignant\maxL41'; %Path where the .mat file will be saved (can be the same as source)
+destination= 'C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Malignant\maxL11'; %Path where the .mat file will be saved (can be the same as source)
 for n=1:Num_Img %número de imagens da classe
     tic
 original = strcat('Malignant (', num2str(n), ').png'); %File name. Must be in the format: 'File_number from 1 to N_.png'. If your images are named differently, rename them or than rewrite this line accordingly
@@ -86,7 +86,7 @@ mdl = fitlm(X, Y, 'RobustOpts', 'on');
 ManhFD = mdl.Coefficients.Estimate(2);
 
 clear PIC;     
-final=strcat(num2str(n),'_maxL41.mat');
+final=strcat(num2str(n),'_maxL11.mat');
 filename=fullfile(destination,final);
 disp(['Salvando: ', filename])
 save(filename);
