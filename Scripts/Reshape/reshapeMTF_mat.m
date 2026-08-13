@@ -1,4 +1,9 @@
-function reshapeMTF_mat(source, destination, class_name, Q_list)
+function reshapeMTF_mat()
+
+source      = 'C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Malignant\maxL7';
+destination = 'C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\MTF\Malignant\maxL7';
+class_name  = 'Malignan';
+Q_list      = [8, 16, 32, 64];
 
 matFiles = dir(fullfile(source, '*.mat'));
 

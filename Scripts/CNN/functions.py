@@ -12,13 +12,7 @@ import torch.optim as optim
 import torchvision.models as models
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import StratifiedKFold, train_test_split
-from sklearn.metrics import (
-    accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score,
-    roc_auc_score,
-)
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
 
 def indexar_por_numero(diretorio, padrao_glob="*.png"):
@@ -461,6 +455,57 @@ _MAPA_CANAL_EXATO = {nome.lower(): nome for nome in NOMES_RESHAPE_PADRAO}
 TAMANHO_PADRAO = (224, 224)
 
 
+def pasta_modelo(pasta_saida, nome_dataset):
+    """Subpasta de pasta_saida dedicada a um dataset/rodada -- mesmo nome já
+    descoberto do dataset (source.name), sem alterar a grafia (ex.
+    METRICAS/CR-SameRes/). Cria a pasta se não existir. É onde ficam
+    splits_kfold, predições e o gráfico de métricas desse dataset --
+    metricas.csv fica direto em pasta_saida, fora dela."""
+    pasta = Path(pasta_saida) / nome_dataset
+    pasta.mkdir(parents=True, exist_ok=True)
+    return pasta
+
+
+def descobrir_mtf_size(source, size_maxL, mtf_q=8, nomes_reshape=NOMES_RESHAPE_PADRAO):
+    """Descobre o sufixo real dos arquivos MTF em disco pro Q pedido
+    (mtf_q) e o size_maxL atual (ex. "MTF_Q8_N60") -- o N não é fixo, é o
+    tamanho do sinal fractal concatenado, que muda com maxL (cada maxL tem
+    seu próprio N). Olha os arquivos já salvos em vez de exigir digitar N
+    à mão.
+
+    Retorna None se a pasta MTF nem existir nesse dataset (comum quando só
+    tá rodando img_original). Levanta FileNotFoundError se a pasta existir
+    mas não tiver nenhum arquivo Q{mtf_q} pra esse size_maxL, ou
+    ValueError se achar mais de um N diferente (dado inconsistente entre
+    classes/imagens).
+    """
+    source = Path(source)
+    pasta_mtf = source / "MTF"
+    if not pasta_mtf.is_dir():
+        return None
+
+    padrao_n = re.compile(rf"_MTF_Q{mtf_q}_N(\d+)\.png$")
+    encontrados = set()
+    for arquivo in pasta_mtf.glob(f"*/{size_maxL}/*_MTF_Q{mtf_q}_N*.png"):
+        m = padrao_n.search(arquivo.name)
+        if m:
+            encontrados.add(int(m.group(1)))
+
+    if not encontrados:
+        raise FileNotFoundError(
+            f"Nenhum arquivo MTF_Q{mtf_q}_N*.png em {pasta_mtf}/*/{size_maxL}/ -- "
+            f"conferir se esse Q e esse size_maxL já foram gerados nesse dataset."
+        )
+    if len(encontrados) > 1:
+        raise ValueError(
+            f"Mais de um N encontrado pra MTF_Q{mtf_q} em {pasta_mtf}/*/{size_maxL}/: "
+            f"{sorted(encontrados)} -- dado inconsistente entre classes/imagens."
+        )
+
+    n = encontrados.pop()
+    return f"MTF_Q{mtf_q}_N{n}"
+
+
 def descobrir_datasets(base_dir, nomes_reshape=NOMES_RESHAPE_PADRAO):
     """Lista as subpastas de base_dir que têm pelo menos uma classe com .png."""
     base_dir = Path(base_dir)
@@ -601,21 +646,28 @@ def treinar_e_avaliar_fold(X_treino, y_treino, X_val, y_val, X_teste, y_teste, i
 
 
 def rodar_dataset(source, combinacoes_desejadas, rec_plot_size=None, MTF_size=None, size_maxL=None,
-                   tamanho_padrao=TAMANHO_PADRAO, batch_size=8, n_epocas=20, lr=1e-4,
-                   seed=42, n_folds=5, pasta_saida=".", nomes_reshape=NOMES_RESHAPE_PADRAO):
+                   mtf_q=8, tamanho_padrao=TAMANHO_PADRAO, batch_size=8, n_epocas=20, lr=1e-4,
+                   seed=42, n_folds=5, pasta_saida="METRICAS", nomes_reshape=NOMES_RESHAPE_PADRAO):
     """Roda combinação x fold pra um dataset: filtra combinações válidas
     (interpretar_combinacoes), fixa o split de cross-validation (universo =
     tudo que já existe em disco pra esse dataset, ver _universo_ids_labels),
     carrega os canais necessários e treina cada combinação x fold, salvando
-    métricas (pasta_saida/metricas.csv) e predições
-    (pasta_saida/predicoes_<dataset>.csv). Não plota (ver rodar_resnet em
-    resnet.py).
+    métricas em pasta_saida/metricas.csv e splits/predições em
+    pasta_saida/<DATASET>/ (mesma grafia do dataset, ver pasta_modelo). Não plota
+    (ver rodar_resnet em resnet.py).
+
+    MTF_size: se None (padrão) e o dataset já tiver pasta MTF, é descoberto
+    automaticamente a partir do que existe em disco pra size_maxL + mtf_q
+    (ver descobrir_mtf_size) -- não precisa mais digitar o N à mão nem
+    manter em sincronia com size_maxL.
 
     Retorna {nome_combinacao: (media, desvio)}; {} se nenhuma combinação
     válida rodou.
     """
     source = Path(source)
     pasta_saida = Path(pasta_saida)
+    pasta_saida.mkdir(parents=True, exist_ok=True)
+    pasta_dataset = pasta_modelo(pasta_saida, source.name)
     print(f"\n{'=' * 60}\nDataset: {source.name}\n{'=' * 60}")
 
     combinacoes_validas = interpretar_combinacoes(source, combinacoes_desejadas, nomes_reshape)
@@ -625,6 +677,11 @@ def rodar_dataset(source, combinacoes_desejadas, rec_plot_size=None, MTF_size=No
     print(f"  Combinações válidas: {list(combinacoes_validas.keys())}")
 
     canais_reshape_existentes = descobrir_canais_reshape(source, nomes_reshape)
+
+    if MTF_size is None and "MTF" in canais_reshape_existentes:
+        MTF_size = descobrir_mtf_size(source, size_maxL, mtf_q=mtf_q)
+        print(f"  MTF_size descoberto automaticamente pra size_maxL={size_maxL}: {MTF_size}")
+
     classes_dict = montar_classes_dict(source, canais_reshape_existentes, rec_plot_size, MTF_size, size_maxL)
     n_classes = len(classes_dict)
     print(f"  Classes: {list(classes_dict.keys())} ({n_classes})")
@@ -643,8 +700,8 @@ def rodar_dataset(source, combinacoes_desejadas, rec_plot_size=None, MTF_size=No
               f"(< n_folds={n_folds}) -- StratifiedKFold não consegue dividir, pulando dataset.")
         return {}
 
-    caminho_splits = pasta_saida / f"splits_kfold_{source.name}.json"
-    caminho_predicoes = pasta_saida / f"predicoes_{source.name}.csv"
+    caminho_splits = pasta_dataset / f"splits_kfold_{source.name}.json"
+    caminho_predicoes = pasta_dataset / f"predicoes_{source.name}.csv"
     folds = gerar_ou_carregar_splits(
         ids_universo, labels_universo, n_splits=n_folds, seed=seed, caminho_splits=caminho_splits
     )

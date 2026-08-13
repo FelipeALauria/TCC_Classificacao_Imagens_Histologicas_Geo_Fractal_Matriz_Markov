@@ -1,4 +1,4 @@
-function reshapeRecPlot_mat(source, destination, class_name)
+function reshapeRecPlot_mat()
 % RESHAPERECPLOT_MAT - Gera Recurrence Plots RGB a partir dos .mat com atributos fractais
 %
 % Entradas:
@@ -11,7 +11,11 @@ function reshapeRecPlot_mat(source, destination, class_name)
 % Exemplo de uso:
 %   reshapeRecPlot_mat('C:\...\CR\Benign', 'C:\...\CR\Benign', 'Benign')
 
-addpath('C:\Users\felip\Documents\MATLAB\Scripts e Datasets\Scripts\Reshape');
+%addpath('C:\Users\felip\Documents\MATLAB\Scripts e Datasets\Scripts\Reshape');
+
+source = 'C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Benign\maxL7'
+destination = 'C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\RecPlot\Benign\maxL7'
+class_name = 'Benign'
 
 matFiles = dir(fullfile(source, '*.mat'));
 matFiles = matFiles(~contains({matFiles.name}, 'mtf'));
