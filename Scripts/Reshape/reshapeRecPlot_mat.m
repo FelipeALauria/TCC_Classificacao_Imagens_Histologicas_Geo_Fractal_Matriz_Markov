@@ -1,4 +1,4 @@
-function reshapeRecPlot_mat()
+function reshapeRecPlot_mat(source, destination, class_name)
 % RESHAPERECPLOT_MAT - Gera Recurrence Plots RGB a partir dos .mat com atributos fractais
 %
 % Entradas:
@@ -8,25 +8,34 @@ function reshapeRecPlot_mat()
 %
 % Requer: cerecurr_y.m no path
 %
+% Pula imagem cujo .png já existe no destino (retomável).
+%
 % Exemplo de uso:
-%   reshapeRecPlot_mat('C:\...\CR\Benign', 'C:\...\CR\Benign', 'Benign')
-
-%addpath('C:\Users\felip\Documents\MATLAB\Scripts e Datasets\Scripts\Reshape');
-
-source = 'C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Benign\maxL7'
-destination = 'C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\RecPlot\Benign\maxL7'
-class_name = 'Benign'
+%   reshapeRecPlot_mat('C:\...\CR\Benign\maxL7', 'C:\...\CR\RecPlot\Benign\maxL7', 'Benign')
 
 matFiles = dir(fullfile(source, '*.mat'));
 matFiles = matFiles(~contains({matFiles.name}, 'mtf'));
 matFiles = matFiles(~contains({matFiles.name}, 'gasf'));
 matFiles = matFiles(~contains({matFiles.name}, 'gadf'));
+
+% Número real da imagem = número no início do nome do .mat (ex:
+% '10_maxL7.mat' -> 10), não a posição na listagem do dir().
+numeros = arrayfun(@(f) str2double(regexp(f.name, '^\d+', 'match', 'once')), matFiles);
+[numeros, idx] = sort(numeros);
+matFiles = matFiles(idx);
 Num_Img = length(matFiles);
 disp(['Total de imagens encontradas: ', num2str(Num_Img)])
 
-for n = 1:Num_Img
+for i = 1:Num_Img
+    n = numeros(i);
     tic
-    matName = fullfile(source, matFiles(n).name);
+    imgName = fullfile(destination, strcat(class_name, '_', num2str(n), '_rp.png'));
+    if isfile(imgName)
+        toc
+        continue
+    end
+
+    matName = fullfile(source, matFiles(i).name);
     data = load(matName);
     disp(['Carregando: ', matName])
 
@@ -54,8 +63,6 @@ for n = 1:Num_Img
     IMG(:,:,2) = g_channel;
     IMG(:,:,3) = b_channel;
 
-    imgName = fullfile(destination, ...
-        strcat(class_name, '_', num2str(n), '_rp.png'));
     imwrite(IMG, imgName);
     disp(['Salvo: ', imgName])
 

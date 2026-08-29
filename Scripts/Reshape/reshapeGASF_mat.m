@@ -8,6 +8,8 @@ function reshapeGASF_mat(source, destination, class_name)
 %
 % Requer: build_gasf.m no path
 %
+% Pula imagem cujo .png já existe no destino (retomável).
+%
 % Exemplo de uso:
 %   reshapeGASF_mat('C:\...\CR\Benign', 'C:\...\CR\Benign', 'Benign')
 
@@ -16,12 +18,25 @@ matFiles = matFiles(~contains({matFiles.name}, 'mtf'));
 matFiles = matFiles(~contains({matFiles.name}, 'RecPlot'));
 matFiles = matFiles(~contains({matFiles.name}, 'gasf'));
 matFiles = matFiles(~contains({matFiles.name}, 'gadf'));
+
+% Número real da imagem = número no início do nome do .mat (ex:
+% '10_maxL7.mat' -> 10), não a posição na listagem do dir().
+numeros = arrayfun(@(f) str2double(regexp(f.name, '^\d+', 'match', 'once')), matFiles);
+[numeros, idx] = sort(numeros);
+matFiles = matFiles(idx);
 Num_Img = length(matFiles);
 disp(['Total de imagens encontradas: ', num2str(Num_Img)])
 
-for n = 1:Num_Img
+for i = 1:Num_Img
+    n = numeros(i);
     tic
-    matName = fullfile(source, matFiles(n).name);
+    imgName = fullfile(destination, strcat(class_name, '_', num2str(n), '_gasf.png'));
+    if isfile(imgName)
+        toc
+        continue
+    end
+
+    matName = fullfile(source, matFiles(i).name);
     data = load(matName);
     disp(['Carregando: ', matName])
 
@@ -37,8 +52,6 @@ for n = 1:Num_Img
     IMG = cat(3, chessChannel, euclChannel, manhChannel);
     IMG = imresize(IMG, [224 224], 'nearest');
 
-    imgName = fullfile(destination, ...
-        strcat(class_name, '_', num2str(n), '_gasf.png'));
     imwrite(IMG, imgName);
     disp(['Salvo: ', imgName])
 

@@ -1,95 +1,126 @@
-%%Script for obtaining PERC, LAC and FD global and local features using Chessboard, Manhattan and Euclidian distances
-%%Requirements:
+function FractalFeatures(source, destinations, maxLList)
+% FRACTALFEATURES - Extrai atributos fractais (percolação, lacunaridade, FD)
+% nas 3 distâncias (Chessboard/Euclidiana/Manhattan) pra cada imagem de `source`.
 %
-% pmrChess.m
-% pmrEucl.m
-% pmrManh.m
-% percChess.m5++++++++++++++++++++++++++++++++++++++++
-% percEucl.m
-% percManh.m
-% lacunarity.m
+% Calcula a parte cara (percolação + matriz de probabilidade) UMA VEZ por
+% imagem, no maior maxL da lista, e fatia o resultado pros maxL menores --
+% cada coluna de percChess/percEucl/percManh/pmrChess/pmrEucl/pmrManh já é
+% independente do maxL usado na chamada, só os agregados finais (trapz/
+% skewness/max/FD) dependem de até onde o r vai, e esses são recalculados
+% por fatia (barato). Ver percStatsFromCurve.m/lacStatsFromCurve.m/
+% fractalDimensionFromProbMatrix.m.
+%
+% Entradas:
+%   source       - pasta com as imagens originais da classe (*.png)
+%   destinations - struct com um campo por maxL (ex: destinations.maxL7 = '...')
+%                  apontando pra pasta onde salvar os .mat desse maxL
+%   maxLList     - vetor com os maxL desejados, ex: [7 11 15 25 41]
+%
+% Requer no path: percChess, percEucl, percManh, pmrChess, pmrEucl, pmrManh,
+% lacunarity, calcN, percStatsFromCurve, lacStatsFromCurve,
+% fractalDimensionFromProbMatrix
+%
+% Pula imagem/maxL cujo .mat já existe no destino (retomável).
+%
+% Exemplo de uso:
+%   destinations.maxL7  = 'C:\...\CR\Benign\maxL7';
+%   destinations.maxL11 = 'C:\...\CR\Benign\maxL11';
+%   FractalFeatures('C:\...\CR\Benign', destinations, [7 11]);
 
-%Max L value
-maxL = 11;
+    imgFiles = dir(fullfile(source, '*.png'));
 
-disp(maxL)
+    % As imagens têm que ser processadas em ordem NUMÉRICA crescente
+    % (1,2,3,4,...), não na ordem alfabética que dir()+sort(nome) dá --
+    % "(10)" vem antes de "(2)" alfabeticamente, o que fazia a imagem 10
+    % virar '2_maxL7.mat' (2ª posição na lista alfabética). O número vem do
+    % nome do arquivo (ex: 'Benign (10).png' -> 10) e é usado tanto pra
+    % ordenar quanto pro nome do .mat de saída (classe já vem embutida em
+    % `destinations`/pasta de origem, o número identifica a imagem dentro
+    % da classe).
+    nomes = {imgFiles.name};
+    tokens = regexp(nomes, '\((\d+)\)', 'tokens', 'once');
+    semNumero = cellfun(@isempty, tokens);
+    if any(semNumero)
+        warning('FractalFeatures:semNumero', 'Ignorando %d arquivo(s) sem número entre parênteses em %s: %s', ...
+            sum(semNumero), source, strjoin(nomes(semNumero), ', '));
+        imgFiles = imgFiles(~semNumero);
+        tokens = tokens(~semNumero);
+    end
+    numeros = cellfun(@(t) str2double(t{1}), tokens);
+    [numeros, idx] = sort(numeros);
+    imgFiles = imgFiles(idx);
+    Num_Img = length(imgFiles);
+    disp(['Total de imagens encontradas: ', num2str(Num_Img)])
 
-%Number of images in dataset (change accordingly)
-Num_Img = 91;
+    maxLFull = max(maxLList);
+    rFull = 3:2:maxLFull;
 
-%\UCSBB (1).png%
-%%
-%Classe 1
-source='C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Malignant'; %Path where the images are stored
-destination= 'C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas\CR\Malignant\maxL11'; %Path where the .mat file will be saved (can be the same as source)
-for n=1:Num_Img %número de imagens da classe
-    tic
-original = strcat('Malignant (', num2str(n), ').png'); %File name. Must be in the format: 'File_number from 1 to N_.png'. If your images are named differently, rename them or than rewrite this line accordingly
-%.png format is not mandatory. If your images are in a different format, just rewrite the line above to match your format
+    for i = 1:Num_Img
+        n = numeros(i); % número real da imagem (usado no nome do .mat)
+        outNames = arrayfun(@(maxL) fullfile(destinations.(sprintf('maxL%d', maxL)), ...
+            strcat(num2str(n), '_maxL', num2str(maxL), '.mat')), maxLList, 'UniformOutput', false);
+        if all(cellfun(@isfile, outNames))
+            continue
+        end
 
-fullname=fullfile(source,original);
-PIC=imread(fullname);
-%PERC
-[ChessMaxClusterIndex, ChessMaxPercIndex, ChessMaxMaxClusterIndex, ChessAreaRatioMaxCluster, ChessMaxMaxCluster, ChessSkewnessMaxCluster, ChessAreaMaxCluster, ChessAreaRatioCluster, ChessAreaRatioPerc, ChessMaxCluster, ChessMaxPerc, ChessSkewnessCluster, ChessSkewnessPerc, ChessAreaPerc, ChessAreaCluster, Chessp, Chessg, Chessh] = percChess(PIC,maxL);
-[EuclMaxClusterIndex, EuclMaxPercIndex, EuclMaxMaxClusterIndex, EuclAreaRatioMaxCluster, EuclMaxMaxCluster, EuclSkewnessMaxCluster, EuclAreaMaxCluster, EuclAreaRatioCluster, EuclAreaRatioPerc, EuclMaxCluster, EuclMaxPerc, EuclSkewnessCluster, EuclSkewnessPerc, EuclAreaPerc, EuclAreaCluster, Euclp, Euclg, Euclh] = percEucl(PIC,maxL);
-[ManhMaxClusterIndex, ManhMaxPercIndex, ManhMaxMaxClusterIndex, ManhAreaRatioMaxCluster, ManhMaxMaxCluster, ManhSkewnessMaxCluster, ManhAreaMaxCluster, ManhAreaRatioCluster, ManhAreaRatioPerc, ManhMaxCluster, ManhMaxPerc, ManhSkewnessCluster, ManhSkewnessPerc, ManhAreaPerc, ManhAreaCluster, Manhp, Manhg, Manhh] = percManh(PIC,maxL);
+        tic
+        fullname = fullfile(source, imgFiles(i).name);
+        PIC = imread(fullname);
+        disp(['Processando: ', imgFiles(i).name])
 
-%Chessboard LAC FD
-ProbMatrix = pmrChess(PIC, maxL);
-ChessLAC = lacunarity(ProbMatrix);
-r = 3:2:maxL;
-ChessAreaLAC = trapz(ChessLAC);
-ChessSkewnessLAC = skewness(ChessLAC);
-half = ceil(length(ChessLAC)/2);
-ChessAreaRatioLAC = trapz(ChessLAC(half+1:end))/trapz(ChessLAC(1:half));
-[ChessMaxLAC, ChessMaxLACIndex] = max(ChessLAC);
-Chessnn = calcN(ProbMatrix);
-x = log(r);
-y = -log(Chessnn);
-X = x.';
-Y = y.';
-mdl = fitlm(X, Y, 'RobustOpts', 'on');
-ChessFD = mdl.Coefficients.Estimate(2);
+        % Parte cara (contagem de caixas), rodada uma única vez no maxL cheio
+        [ChessMaxClusterIndex_, ChessMaxPercIndex_, ChessMaxMaxClusterIndex_, ChessAreaRatioMaxCluster_, ChessMaxMaxCluster_, ChessSkewnessMaxCluster_, ChessAreaMaxCluster_, ChessAreaRatioCluster_, ChessAreaRatioPerc_, ChessMaxCluster_, ChessMaxPerc_, ChessSkewnessCluster_, ChessSkewnessPerc_, ChessAreaPerc_, ChessAreaCluster_, ChessP, ChessG, ChessH] = percChess(PIC, maxLFull); %#ok<ASGLU>
+        [EuclMaxClusterIndex_,  EuclMaxPercIndex_,  EuclMaxMaxClusterIndex_,  EuclAreaRatioMaxCluster_,  EuclMaxMaxCluster_,  EuclSkewnessMaxCluster_,  EuclAreaMaxCluster_,  EuclAreaRatioCluster_,  EuclAreaRatioPerc_,  EuclMaxCluster_,  EuclMaxPerc_,  EuclSkewnessCluster_,  EuclSkewnessPerc_,  EuclAreaPerc_,  EuclAreaCluster_,  EuclP,  EuclG,  EuclH ] = percEucl(PIC, maxLFull); %#ok<ASGLU>
+        [ManhMaxClusterIndex_,  ManhMaxPercIndex_,  ManhMaxMaxClusterIndex_,  ManhAreaRatioMaxCluster_,  ManhMaxMaxCluster_,  ManhSkewnessMaxCluster_,  ManhAreaMaxCluster_,  ManhAreaRatioCluster_,  ManhAreaRatioPerc_,  ManhMaxCluster_,  ManhMaxPerc_,  ManhSkewnessCluster_,  ManhSkewnessPerc_,  ManhAreaPerc_,  ManhAreaCluster_,  ManhP,  ManhG,  ManhH ] = percManh(PIC, maxLFull); %#ok<ASGLU>
 
-%Euclidian LAC FDMilkySimss
-ProbMatrix = pmrEucl(PIC, maxL);
-EuclLAC = lacunarity(ProbMatrix);
-r = 3:2:maxL;
-EuclAreaLAC = trapz(EuclLAC);
-EuclSkewnessLAC = skewness(EuclLAC);
-half = ceil(length(EuclLAC)/2);
-EuclAreaRatioLAC = trapz(EuclLAC(half+1:end))/trapz(EuclLAC(1:half));
-[EuclMaxLAC, EuclMaxLACIndex] = max(EuclLAC);
-Euclnn = calcN(ProbMatrix);
-x = log(r);
-y = -log(Euclnn);
-X = x.';
-Y = y.';
-mdl = fitlm(X, Y, 'RobustOpts', 'on');
-EuclFD = mdl.Coefficients.Estimate(2);
+        ProbMatrixChess = pmrChess(PIC, maxLFull);
+        ProbMatrixEucl  = pmrEucl(PIC, maxLFull);
+        ProbMatrixManh  = pmrManh(PIC, maxLFull);
 
-%Manhattan LAC FD
-ProbMatrix = pmrManh(PIC, maxL);
-ManhLAC = lacunarity(ProbMatrix);
-r = 3:2:maxL;
-ManhAreaLAC = trapz(ManhLAC);
-ManhSkewnessLAC = skewness(ManhLAC);
-half = ceil(length(ManhLAC)/2);
-ManhAreaRatioLAC = trapz(ManhLAC(half+1:end))/trapz(ManhLAC(1:half));
-[ManhMaxLAC, ManhMaxLACIndex] = max(ManhLAC);
-Manhnn = calcN(ProbMatrix);
-x = log(r);
-y = -log(Manhnn);
-X = x.';
-Y = y.';
-mdl = fitlm(X, Y, 'RobustOpts', 'on');
-ManhFD = mdl.Coefficients.Estimate(2);
+        for m = 1:length(maxLList)
+            maxL = maxLList(m);
+            outName = outNames{m};
+            if isfile(outName)
+                continue
+            end
 
-clear PIC;     
-final=strcat(num2str(n),'_maxL11.mat');
-filename=fullfile(destination,final);
-disp(['Salvando: ', filename])
-save(filename);
-disp('Salvou!!')
-toc
-end 
+            k = length(3:2:maxL);
+            r = rFull(1:k);
+
+            Chessp = ChessP(1:k); Chessg = ChessG(1:k); Chessh = ChessH(1:k);
+            Euclp  = EuclP(1:k);  Euclg  = EuclG(1:k);  Euclh  = EuclH(1:k);
+            Manhp  = ManhP(1:k);  Manhg  = ManhG(1:k);  Manhh  = ManhH(1:k);
+
+            [ChessMaxClusterIndex, ChessMaxPercIndex, ChessMaxMaxClusterIndex, ChessAreaRatioMaxCluster, ChessMaxMaxCluster, ChessSkewnessMaxCluster, ChessAreaMaxCluster, ChessAreaRatioCluster, ChessAreaRatioPerc, ChessMaxCluster, ChessMaxPerc, ChessSkewnessCluster, ChessSkewnessPerc, ChessAreaPerc, ChessAreaCluster] = percStatsFromCurve(Chessp, Chessg, Chessh);
+            [EuclMaxClusterIndex,  EuclMaxPercIndex,  EuclMaxMaxClusterIndex,  EuclAreaRatioMaxCluster,  EuclMaxMaxCluster,  EuclSkewnessMaxCluster,  EuclAreaMaxCluster,  EuclAreaRatioCluster,  EuclAreaRatioPerc,  EuclMaxCluster,  EuclMaxPerc,  EuclSkewnessCluster,  EuclSkewnessPerc,  EuclAreaPerc,  EuclAreaCluster ] = percStatsFromCurve(Euclp, Euclg, Euclh);
+            [ManhMaxClusterIndex,  ManhMaxPercIndex,  ManhMaxMaxClusterIndex,  ManhAreaRatioMaxCluster,  ManhMaxMaxCluster,  ManhSkewnessMaxCluster,  ManhAreaMaxCluster,  ManhAreaRatioCluster,  ManhAreaRatioPerc,  ManhMaxCluster,  ManhMaxPerc,  ManhSkewnessCluster,  ManhSkewnessPerc,  ManhAreaPerc,  ManhAreaCluster ] = percStatsFromCurve(Manhp, Manhg, Manhh);
+
+            ChessLAC = lacunarity(ProbMatrixChess(:, 1:k));
+            EuclLAC  = lacunarity(ProbMatrixEucl(:, 1:k));
+            ManhLAC  = lacunarity(ProbMatrixManh(:, 1:k));
+
+            [ChessAreaLAC, ChessSkewnessLAC, ChessAreaRatioLAC, ChessMaxLAC, ChessMaxLACIndex] = lacStatsFromCurve(ChessLAC);
+            [EuclAreaLAC,  EuclSkewnessLAC,  EuclAreaRatioLAC,  EuclMaxLAC,  EuclMaxLACIndex ] = lacStatsFromCurve(EuclLAC);
+            [ManhAreaLAC,  ManhSkewnessLAC,  ManhAreaRatioLAC,  ManhMaxLAC,  ManhMaxLACIndex ] = lacStatsFromCurve(ManhLAC);
+
+            [ChessFD, Chessnn] = fractalDimensionFromProbMatrix(ProbMatrixChess(:, 1:k), r);
+            [EuclFD,  Euclnn ] = fractalDimensionFromProbMatrix(ProbMatrixEucl(:, 1:k),  r);
+            [ManhFD,  Manhnn ] = fractalDimensionFromProbMatrix(ProbMatrixManh(:, 1:k),  r);
+
+            save(outName, ...
+                'Chessp', 'Chessg', 'Chessh', 'ChessLAC', 'Chessnn', 'ChessFD', ...
+                'ChessMaxClusterIndex', 'ChessMaxPercIndex', 'ChessMaxMaxClusterIndex', 'ChessAreaRatioMaxCluster', 'ChessMaxMaxCluster', 'ChessSkewnessMaxCluster', 'ChessAreaMaxCluster', 'ChessAreaRatioCluster', 'ChessAreaRatioPerc', 'ChessMaxCluster', 'ChessMaxPerc', 'ChessSkewnessCluster', 'ChessSkewnessPerc', 'ChessAreaPerc', 'ChessAreaCluster', ...
+                'ChessAreaLAC', 'ChessSkewnessLAC', 'ChessAreaRatioLAC', 'ChessMaxLAC', 'ChessMaxLACIndex', ...
+                'Euclp', 'Euclg', 'Euclh', 'EuclLAC', 'Euclnn', 'EuclFD', ...
+                'EuclMaxClusterIndex', 'EuclMaxPercIndex', 'EuclMaxMaxClusterIndex', 'EuclAreaRatioMaxCluster', 'EuclMaxMaxCluster', 'EuclSkewnessMaxCluster', 'EuclAreaMaxCluster', 'EuclAreaRatioCluster', 'EuclAreaRatioPerc', 'EuclMaxCluster', 'EuclMaxPerc', 'EuclSkewnessCluster', 'EuclSkewnessPerc', 'EuclAreaPerc', 'EuclAreaCluster', ...
+                'EuclAreaLAC', 'EuclSkewnessLAC', 'EuclAreaRatioLAC', 'EuclMaxLAC', 'EuclMaxLACIndex', ...
+                'Manhp', 'Manhg', 'Manhh', 'ManhLAC', 'Manhnn', 'ManhFD', ...
+                'ManhMaxClusterIndex', 'ManhMaxPercIndex', 'ManhMaxMaxClusterIndex', 'ManhAreaRatioMaxCluster', 'ManhMaxMaxCluster', 'ManhSkewnessMaxCluster', 'ManhAreaMaxCluster', 'ManhAreaRatioCluster', 'ManhAreaRatioPerc', 'ManhMaxCluster', 'ManhMaxPerc', 'ManhSkewnessCluster', 'ManhSkewnessPerc', 'ManhAreaPerc', 'ManhAreaCluster', ...
+                'ManhAreaLAC', 'ManhSkewnessLAC', 'ManhAreaRatioLAC', 'ManhMaxLAC', 'ManhMaxLACIndex');
+            disp(['Salvo: ', outName])
+        end
+        toc
+    end
+
+    disp('Atributos fractais gerados com sucesso!')
+end
