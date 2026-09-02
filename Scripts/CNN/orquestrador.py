@@ -12,24 +12,40 @@ BASE_DIR = Path(r"C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Ima
 # datasets = toda subpasta de BASE_DIR com pelo menos uma classe com .png
 TODOS_DATASETS = descobrir_datasets(BASE_DIR)
 
-# Rodada atual: só os datasets já binários (Benign/Malignant) no disco.
-# Fora por serem multiclasse nativo: DIS (4), LA (4), NHL (3, sem classe
-# saudável -- não dá pra binarizar). LG também tem só 2 pastas ("1"/"2")
-# mas fica de fora até confirmar com o orientador o que os rótulos significam.
-DATASETS_BINARIOS = ["CR"]
-DATASETS = [d for d in DATASETS_BINARIOS if d in TODOS_DATASETS]
+# Duas listas fixas -- troque DATASETS_DESEJADOS pra escolher qual rodar.
+# CR não é mais usado (decisão de 31/08/2026). LG entra como binário (só 2
+# pastas, "1"/"2") e DIS/LA/NHL como multiclasse nativo.
+DATASETS_BINARIOS = ["CR-SameRes", "LG"] #, "UCSB"
+DATASETS_MULTICLASSE = ["DIS", "LA"] # , "NHL"
 
-# combinações desejadas nesta rodada (dict nome -> canais em minúsculo).
-# Combinação com canal ainda não gerado num dataset é pulada só pra esse
-# dataset (interpretar_combinacoes em functions.py).
-#
-# Ablação -- descomentar as combinações que quiser incluir na rodada:
-COMBINACOES_DESEJADAS = {
+DATASETS_DESEJADOS = DATASETS_MULTICLASSE  
+DATASETS = [d for d in DATASETS_DESEJADOS if d in TODOS_DATASETS]
+
+# ------------------------------------------------------------
+# Combinações de canal único -- as únicas que treinam de fato uma CNN (via
+# rodar_dataset, dentro de rodar_resnet). Rodam uma vez só: combinação x
+# fold que já tem resultado salvo em predicoes.csv é pulada automaticamente
+# (resume, ver rodar_dataset em functions.py).
+# ------------------------------------------------------------
+COMBINACOES_BASE = {
     "img_original": ["img"],
     "recplot": ["recplot"],
     "mtf": ["mtf"],
     "gasf": ["gasf"],
     "gadf": ["gadf"],
+}
+
+# ------------------------------------------------------------
+# Ablação -- combinações de 2+ canais. Não treinam CNN nenhuma: são
+# calculadas combinando por soft voting (média das probabilidades softmax)
+# os resultados já salvos das combinações de COMBINACOES_BASE acima (ver
+# rodar_ablacao_softmax em functions.py). Combinação com canal ainda não
+# gerado num dataset, ou cuja base ainda não rodou, é pulada só pra esse
+# dataset.
+#
+# Descomente/comente as combinações que quiser incluir na rodada:
+# ------------------------------------------------------------
+COMBINACOES_ABLACAO = {
     "img+recplot": ["img", "recplot"],
     "img+mtf": ["img", "mtf"],
     "img+gasf": ["img", "gasf"],
@@ -59,7 +75,7 @@ COMBINACOES_DESEJADAS = {
 }
 
 SIZE_MAXL = "maxL25"
-# MTF_size (o "N" no nome do arquivo) não é mais fixado à mão -- é descoberto
+# MTF_size (o "N" no nome do arquivo) não é fixado à mão -- é descoberto
 # automaticamente a partir do que já existe em disco pra SIZE_MAXL + MTF_Q
 # (ver descobrir_mtf_size em functions.py). Só o Q é configurável aqui.
 MTF_Q = 8
@@ -72,10 +88,12 @@ PASTA_SAIDA = Path("METRICAS")
 # LAÇO: um dataset de cada vez, erro isolado por dataset
 # ============================================================
 
-def rodar_todos_datasets(nomes_datasets, combinacoes_desejadas, base_dir, **kwargs):
+def rodar_todos_datasets(nomes_datasets, combinacoes_base, combinacoes_ablacao, base_dir, **kwargs):
     """Chama rodar_resnet (resnet.py) pra cada nome em nomes_datasets
-    (source = base_dir / nome), isolando erro por dataset -- um dataset com
-    problema fica registrado no console e não impede os demais.
+    (source = base_dir / nome): treina combinacoes_base (canal único) e
+    calcula combinacoes_ablacao por softmax (sem retreinar), isolando erro
+    por dataset -- um dataset com problema fica registrado no console e
+    não impede os demais.
 
     Retorna {nome_dataset: resumo_combinacoes} só com os datasets que
     rodaram pelo menos uma combinação.
@@ -86,7 +104,7 @@ def rodar_todos_datasets(nomes_datasets, combinacoes_desejadas, base_dir, **kwar
     for nome_dataset in nomes_datasets:
         source = base_dir / nome_dataset
         try:
-            resumo = rodar_resnet(source, combinacoes_desejadas, **kwargs)
+            resumo = rodar_resnet(source, combinacoes_base, combinacoes_ablacao, **kwargs)
             if resumo:
                 resumo_geral[nome_dataset] = resumo
         except Exception as erro:
@@ -109,10 +127,11 @@ def rodar_todos_datasets(nomes_datasets, combinacoes_desejadas, base_dir, **kwar
 
 if __name__ == "__main__":
     print(f"Datasets encontrados em {BASE_DIR}: {DATASETS}")
-    print(f"Combinações desejadas: {list(COMBINACOES_DESEJADAS.keys())}")
+    print(f"Combinações base (treinam CNN): {list(COMBINACOES_BASE.keys())}")
+    print(f"Combinações de ablação (softmax, sem retreino): {list(COMBINACOES_ABLACAO.keys())}")
 
     rodar_todos_datasets(
-        DATASETS, COMBINACOES_DESEJADAS, BASE_DIR,
+        DATASETS, COMBINACOES_BASE, COMBINACOES_ABLACAO, BASE_DIR,
         pasta_saida=PASTA_SAIDA,
         size_maxL=SIZE_MAXL, mtf_q=MTF_Q, rec_plot_size=REC_PLOT_SIZE,
     )

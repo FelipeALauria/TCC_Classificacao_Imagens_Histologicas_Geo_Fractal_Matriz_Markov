@@ -1,24 +1,36 @@
 from pathlib import Path
 
-from functions import rodar_dataset, comparar_softmax, pasta_modelo
+from functions import rodar_dataset, rodar_ablacao_softmax, comparar_softmax, pasta_modelo, descobrir_canais_reshape
 from graficos import plotar_comparacao_combinacoes
 
 
-def rodar_resnet(source, combinacoes_desejadas, pasta_saida="METRICAS", **kwargs):
-    """Roda rodar_dataset (functions.py) pra um dataset e gera o relatório
-    visual dentro de pasta_saida/<DATASET>/ (mesma grafia do dataset, ver
-    pasta_modelo): gráfico comparativo entre combinações
+def rodar_resnet(source, combinacoes_base, combinacoes_ablacao=None, pasta_saida="METRICAS", **kwargs):
+    """Roda rodar_dataset (functions.py) pra treinar as combinações de canal
+    único em combinacoes_base e, se combinacoes_ablacao for passado, chama
+    rodar_ablacao_softmax pra calcular as combinações de 2+ canais por soft
+    voting (média das probabilidades já salvas das combinações-base --
+    não treina nada de novo). Gera o relatório visual dentro de
+    pasta_saida/<DATASET>/ (mesma grafia do dataset, ver pasta_modelo): gráfico
+    comparativo entre todas as combinações que rodaram
     (comparacao_combinacoes_<dataset>.png, ver graficos.py) e, com 2+
     combinações, um exemplo de comparar_softmax entre a primeira e a
     última.
 
-    Retorna resumo_combinacoes (mesmo formato de rodar_dataset).
+    Retorna resumo_combinacoes (mesmo formato de rodar_dataset), já com
+    base + ablação combinados.
     """
     source = Path(source)
     pasta_saida = Path(pasta_saida)
     pasta_dataset = pasta_modelo(pasta_saida, source.name)
 
-    resumo_combinacoes = rodar_dataset(source, combinacoes_desejadas, pasta_saida=pasta_saida, **kwargs)
+    resumo_combinacoes = rodar_dataset(source, combinacoes_base, pasta_saida=pasta_saida, **kwargs)
+
+    if combinacoes_ablacao:
+        kwargs_ablacao = {k: kwargs[k] for k in ("n_folds", "nomes_reshape") if k in kwargs}
+        resumo_ablacao = rodar_ablacao_softmax(
+            source, combinacoes_ablacao, combinacoes_base, pasta_saida=pasta_saida, **kwargs_ablacao
+        )
+        resumo_combinacoes.update(resumo_ablacao)
 
     if not resumo_combinacoes:
         print(f"\nNenhuma combinação rodou com sucesso para {source.name} -- sem gráfico a gerar.")
@@ -43,23 +55,25 @@ def rodar_resnet(source, combinacoes_desejadas, pasta_saida="METRICAS", **kwargs
 
 
 if __name__ == "__main__":
-    # Uso manual: 1 dataset, todas as combinações que ele já suportar
-    # (auto-geradas do que existe em disco). Pra rodar vários datasets de
-    # uma vez com um conjunto específico de combinações, ver orquestrador.py.
+    # Uso manual: 1 dataset. Treina as combinações de canal único que ele já
+    # suportar (base) e calcula por softmax -- sem retreinar nada -- todas
+    # as combinações de 2+ canais possíveis com o que existe em disco
+    # (ablação). Pra rodar vários datasets de uma vez, ver orquestrador.py.
     source = Path(r"C:/Users/felip/Desktop/Facul/TCC/Scripts_Datasets/Datasets/Imagens Histológicas/CR")
 
-    from Scripts_Datasets.Scripts.CNN.functions import descobrir_canais_reshape
+    from itertools import combinations
 
     canais_reshape = descobrir_canais_reshape(source)
     canais_disponiveis = ["img"] + [c.lower() for c in canais_reshape]
 
-    combinacoes = {"img_original": ["img"]}
-    for canal in canais_disponiveis[1:]:
-        combinacoes[f"img+{canal}"] = ["img", canal]
-    if len(canais_disponiveis) > 2:
-        combinacoes["img+" + "+".join(canais_disponiveis[1:])] = canais_disponiveis
+    combinacoes_base = {("img_original" if canal == "img" else canal): [canal] for canal in canais_disponiveis}
+
+    combinacoes_ablacao = {}
+    for tamanho in range(2, len(canais_disponiveis) + 1):
+        for combo in combinations(canais_disponiveis, tamanho):
+            combinacoes_ablacao["+".join(combo)] = list(combo)
 
     rodar_resnet(
-        source, combinacoes,
+        source, combinacoes_base, combinacoes_ablacao,
         size_maxL="maxL15", rec_plot_size="rp",
     )

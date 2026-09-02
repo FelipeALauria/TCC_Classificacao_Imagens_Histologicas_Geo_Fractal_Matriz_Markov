@@ -16,19 +16,30 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 
 
 def indexar_por_numero(diretorio, padrao_glob="*.png"):
-    """Indexa os arquivos de um diretório por índice numérico extraído do
-    nome (ex. "Benign (5).png", "5_RecPlot_512x512.png"). padrao_glob
-    filtra quais arquivos entram. Retorna {} se o diretório não existir."""
+    """Indexa os arquivos de um diretório pelo número REAL da imagem.
+
+    Extrai o ÚLTIMO grupo de dígitos do nome, depois de remover o sufixo
+    literal já conhecido de padrao_glob (a parte fixa depois do "*") --
+    não o primeiro grupo de dígitos do nome inteiro. Isso importa porque
+    o nome de classe pode ser só um número (datasets LA/LG, classes
+    "1".."4") e apareceria ANTES do número real da imagem: "Class 1 -
+    (100).png" -> 100 (não 1, que é só o nome da classe); "1_100_rp.png"
+    (RecPlot da classe "1") -> 100; "100_MTF_Q8_N60.png" -> 100 (aqui o
+    prefixo já É o número, sem nome de classe). padrao_glob filtra quais
+    arquivos entram. Retorna {} se o diretório não existir."""
     diretorio = Path(diretorio)
+    sufixo = padrao_glob[1:] if padrao_glob.startswith("*") else ""
     padrao_numero = re.compile(r"\d+")
     mapa = {}
     if not diretorio.is_dir():
         return mapa
     for arquivo in sorted(diretorio.glob(padrao_glob)):
-        correspondencia = padrao_numero.search(arquivo.stem)
-        if correspondencia is None:
+        nome = arquivo.name
+        resto = nome[:-len(sufixo)] if sufixo and nome.endswith(sufixo) else arquivo.stem
+        numeros = padrao_numero.findall(resto)
+        if not numeros:
             continue
-        indice = int(correspondencia.group())
+        indice = int(numeros[-1])
         mapa[indice] = arquivo
     return mapa
 
@@ -409,6 +420,9 @@ def comparar_softmax(combinacao_a, combinacao_b, caminho_csv="predicoes.csv"):
     from scipy.stats import pearsonr
 
     df = pd.read_csv(caminho_csv)
+    # Dedup: linha (combinacao, fold, id) repetida (ex. dataset rodado mais
+    # de uma vez antes do resume existir) -- fica só a última.
+    df = df.drop_duplicates(subset=["combinacao", "fold", "id"], keep="last")
     df["y_prob"] = df["y_prob"].apply(json.loads)
 
     a = df[df["combinacao"] == combinacao_a].set_index(["id", "fold"])
@@ -443,6 +457,46 @@ def comparar_softmax(combinacao_a, combinacao_b, caminho_csv="predicoes.csv"):
     print(f"Concordância na classe predita:                 {comparacao['mesma_predicao'].mean():.2%}")
 
     return comparacao
+
+
+def _carregar_predicoes_cache(caminho_predicoes, nome_combinacao):
+    """Lê as linhas já salvas de uma combinação em predicoes.csv e agrupa
+    por fold: {fold: {"ids_teste": [...], "y_true": ndarray, "y_pred":
+    ndarray, "y_prob_matriz": ndarray}}. {} se o arquivo não existir ou a
+    combinação ainda não ter nenhuma linha salva -- usado tanto pro resume
+    (pular fold já treinado) quanto pra ablação por softmax.
+
+    Dedup: se o mesmo (fold, id) aparecer mais de uma vez (ex. dataset
+    rodado mais de uma vez antes do resume existir), fica só a ÚLTIMA
+    linha lida. As listas de cada fold saem sempre ordenadas por id (não
+    pela ordem de inserção no CSV) -- garante que folds de combinações
+    diferentes fiquem alinhados linha a linha na ablação por softmax."""
+    caminho_predicoes = Path(caminho_predicoes)
+    if not caminho_predicoes.exists():
+        return {}
+
+    por_fold = {}
+    with open(caminho_predicoes, mode="r", newline="", encoding="utf-8") as arquivo:
+        leitor = csv.DictReader(arquivo)
+        for linha in leitor:
+            if linha["combinacao"] != nome_combinacao:
+                continue
+            fold = int(linha["fold"])
+            por_id = por_fold.setdefault(fold, {})
+            por_id[linha["id"]] = linha  # duplicata: última linha lida vence
+
+    resultado = {}
+    for fold, por_id in por_fold.items():
+        ids_ordenados = sorted(por_id)
+        resultado[fold] = {
+            "ids_teste": ids_ordenados,
+            "y_true": np.array([int(por_id[i]["y_true"]) for i in ids_ordenados], dtype=np.int64),
+            "y_pred": np.array([int(por_id[i]["y_pred"]) for i in ids_ordenados], dtype=np.int64),
+            "y_prob_matriz": np.array(
+                [json.loads(por_id[i]["y_prob"]) for i in ids_ordenados], dtype=np.float64
+            ),
+        }
+    return resultado
 
 
 # ============================================================
@@ -656,6 +710,11 @@ def rodar_dataset(source, combinacoes_desejadas, rec_plot_size=None, MTF_size=No
     pasta_saida/<DATASET>/ (mesma grafia do dataset, ver pasta_modelo). Não plota
     (ver rodar_resnet em resnet.py).
 
+    Resume: combinação x fold que já tem linha salva em predicoes.csv não é
+    retreinada -- as métricas desse fold são recalculadas a partir do que
+    já está no disco (ver _carregar_predicoes_cache). Pra forçar retreino,
+    apague a linha (ou o arquivo) manualmente.
+
     MTF_size: se None (padrão) e o dataset já tiver pasta MTF, é descoberto
     automaticamente a partir do que existe em disco pra size_maxL + mtf_q
     (ver descobrir_mtf_size) -- não precisa mais digitar o N à mão nem
@@ -747,8 +806,20 @@ def rodar_dataset(source, combinacoes_desejadas, rec_plot_size=None, MTF_size=No
 
         metricas_folds = []
         erro_na_combinacao = False
+        # Resume: fold já salvo em predicoes.csv não é retreinado -- as
+        # métricas são recalculadas a partir do que já está no disco.
+        cache_existente = _carregar_predicoes_cache(caminho_predicoes, nome_combinacao)
 
         for i_fold, fold in enumerate(folds, start=1):
+            if i_fold in cache_existente:
+                dados_cache = cache_existente[i_fold]
+                metricas = calcular_metricas(
+                    dados_cache["y_true"], dados_cache["y_pred"], dados_cache["y_prob_matriz"], n_classes
+                )
+                metricas_folds.append(metricas)
+                print(f"\n    -- Fold {i_fold}/{len(folds)} -- já processado, pulando (resume) --")
+                continue
+
             print(f"\n    -- Fold {i_fold}/{len(folds)} --")
             try:
                 idx_treino_full = indices_por_ids(ids, fold["treino_ids"])
@@ -801,15 +872,156 @@ def rodar_dataset(source, combinacoes_desejadas, rec_plot_size=None, MTF_size=No
         media = {k: float(np.mean([m[k] for m in metricas_folds])) for k in metricas_folds[0]}
         desvio = {k: float(np.std([m[k] for m in metricas_folds])) for k in metricas_folds[0]}
 
-        salva_metrica_csv(
-            modelo="resnet50", dataset=source.name, combinacao=nome_combinacao,
-            precisao=media["precisao"], recall=media["recall"], f1=media["f1"],
-            acuracia=media["acuracia"], auc=media["auc"], fold="media",
-            caminho_csv=pasta_saida / "metricas.csv",
-        )
+        # Só regrava a linha de média se algum fold foi treinado de fato
+        # nessa chamada -- combinação 100% resumida do cache não duplica a
+        # linha "media" que uma rodada anterior já salvou.
+        if len(cache_existente) < len(folds):
+            salva_metrica_csv(
+                modelo="resnet50", dataset=source.name, combinacao=nome_combinacao,
+                precisao=media["precisao"], recall=media["recall"], f1=media["f1"],
+                acuracia=media["acuracia"], auc=media["auc"], fold="media",
+                caminho_csv=pasta_saida / "metricas.csv",
+            )
 
         resumo_combinacoes[nome_combinacao] = (media, desvio)
         print(f"\n  Média ± desvio padrão ({nome_combinacao}, {len(folds)} folds):")
+        for k in media:
+            print(f"    {k}: {media[k]:.4f} ± {desvio[k]:.4f}")
+
+    return resumo_combinacoes
+
+
+# ============================================================
+# ABLAÇÃO POR COMBINAÇÃO DE SOFTMAX -- sem retreinar CNN
+# ============================================================
+# As 5 combinações de canal único (img/recplot/mtf/gasf/gadf) são as únicas
+# treinadas de fato (rodar_dataset). Qualquer combinação com 2+ canais é
+# obtida combinando (soft voting: média das probabilidades) as predições já
+# salvas dessas 5 -- não treina nada, só lê predicoes.csv.
+
+def mapear_canal_para_combinacao_base(combinacoes_base):
+    """{canal: nome_combinacao} a partir das combinações de canal único de
+    combinacoes_base (ex. {"img_original": ["img"], "mtf": ["mtf"]} ->
+    {"img": "img_original", "mtf": "mtf"}). Combinações com 2+ canais em
+    combinacoes_base são ignoradas aqui (não servem de base pra ablação)."""
+    return {canais[0]: nome for nome, canais in combinacoes_base.items() if len(canais) == 1}
+
+
+def rodar_ablacao_softmax(source, combinacoes_ablacao, combinacoes_base, n_folds=5,
+                           pasta_saida="METRICAS", nomes_reshape=NOMES_RESHAPE_PADRAO):
+    """Calcula métricas de combinações multi-canal (2+ canais) combinando
+    por soft voting (média das probabilidades softmax, id+fold a id+fold)
+    as predições já salvas das combinações de canal único em
+    combinacoes_base -- não treina nenhum modelo novo, só lê e agrega
+    predicoes.csv. Resume: combinação já combinada antes (fold já salvo em
+    predicoes.csv) não é recombinada.
+
+    Pula (aviso no console, sem interromper as demais): combinação de canal
+    ainda não gerado em disco (interpretar_combinacoes); combinação de
+    canal único (é base, não ablação); canal sem combinação de canal único
+    correspondente em combinacoes_base; combinação-base que ainda não tem
+    os n_folds salvos em predicoes.csv (rodar rodar_dataset primeiro).
+
+    Retorna {nome_combinacao: (media, desvio)}, mesmo formato de
+    rodar_dataset -- dá pra juntar os dois dicts direto (ver rodar_resnet).
+    """
+    source = Path(source)
+    pasta_dataset = pasta_modelo(pasta_saida, source.name)
+    caminho_predicoes = pasta_dataset / f"predicoes_{source.name}.csv"
+    caminho_metricas = Path(pasta_saida) / "metricas.csv"
+
+    mapa_canal_base = mapear_canal_para_combinacao_base(combinacoes_base)
+    combinacoes_validas = interpretar_combinacoes(source, combinacoes_ablacao, nomes_reshape)
+    resumo_combinacoes = {}
+
+    for nome_combinacao, canais in combinacoes_validas.items():
+        canais_lower = [c.lower() for c in canais]
+        if len(canais_lower) < 2:
+            continue  # combinação de canal único é base, não ablação
+
+        nomes_base = []
+        canal_faltando = None
+        for canal in canais_lower:
+            nome_base = mapa_canal_base.get(canal)
+            if nome_base is None:
+                canal_faltando = canal
+                break
+            nomes_base.append(nome_base)
+        if canal_faltando:
+            print(f"    [pulando ablação '{nome_combinacao}' em {source.name}: canal "
+                  f"'{canal_faltando}' não tem combinação de canal único correspondente "
+                  f"em combinacoes_base]")
+            continue
+
+        cache_por_base = {}
+        base_faltando = None
+        for nome_base in nomes_base:
+            cache = _carregar_predicoes_cache(caminho_predicoes, nome_base)
+            if len(cache) < n_folds:
+                base_faltando = nome_base
+                break
+            cache_por_base[nome_base] = cache
+        if base_faltando:
+            print(f"    [pulando ablação '{nome_combinacao}' em {source.name}: combinação-base "
+                  f"'{base_faltando}' ainda não tem os {n_folds} folds salvos em "
+                  f"{caminho_predicoes} -- rodar rodar_dataset primeiro]")
+            continue
+
+        folds_prontos = _carregar_predicoes_cache(caminho_predicoes, nome_combinacao)
+        metricas_folds = []
+
+        for i_fold in range(1, n_folds + 1):
+            if i_fold in folds_prontos:
+                dados_cache = folds_prontos[i_fold]
+                metricas_folds.append(calcular_metricas(
+                    dados_cache["y_true"], dados_cache["y_pred"], dados_cache["y_prob_matriz"],
+                    dados_cache["y_prob_matriz"].shape[1],
+                ))
+                continue
+
+            linhas_base = [cache_por_base[nome_base][i_fold] for nome_base in nomes_base]
+            ids_ref = linhas_base[0]["ids_teste"]
+            if any(linha["ids_teste"] != ids_ref for linha in linhas_base[1:]):
+                print(f"    [pulando fold {i_fold} de '{nome_combinacao}' em {source.name}: "
+                      f"ids de teste divergem entre as combinações-base -- splits desalinhados]")
+                continue
+
+            y_prob_matriz = np.mean([linha["y_prob_matriz"] for linha in linhas_base], axis=0)
+            y_pred = np.argmax(y_prob_matriz, axis=1)
+            y_true = linhas_base[0]["y_true"]
+
+            salvar_predicoes_csv(
+                ids_ref, y_true, y_prob_matriz, y_pred,
+                combinacao=nome_combinacao, fold=i_fold, caminho_csv=caminho_predicoes,
+            )
+
+            metricas = calcular_metricas(y_true, y_pred, y_prob_matriz, y_prob_matriz.shape[1])
+            salva_metrica_csv(
+                modelo="ensemble_softmax", dataset=source.name, combinacao=nome_combinacao,
+                precisao=metricas["precisao"], recall=metricas["recall"], f1=metricas["f1"],
+                acuracia=metricas["acuracia"], auc=metricas["auc"], fold=i_fold,
+                caminho_csv=caminho_metricas,
+            )
+            metricas_folds.append(metricas)
+            print(f"    [ablação] {nome_combinacao} fold {i_fold}: acc={metricas['acuracia']:.4f} "
+                  f"f1={metricas['f1']:.4f} auc={metricas['auc']:.4f}")
+
+        if len(metricas_folds) < n_folds:
+            continue
+
+        media = {k: float(np.mean([m[k] for m in metricas_folds])) for k in metricas_folds[0]}
+        desvio = {k: float(np.std([m[k] for m in metricas_folds])) for k in metricas_folds[0]}
+
+        if len(folds_prontos) < n_folds:
+            salva_metrica_csv(
+                modelo="ensemble_softmax", dataset=source.name, combinacao=nome_combinacao,
+                precisao=media["precisao"], recall=media["recall"], f1=media["f1"],
+                acuracia=media["acuracia"], auc=media["auc"], fold="media",
+                caminho_csv=caminho_metricas,
+            )
+
+        resumo_combinacoes[nome_combinacao] = (media, desvio)
+        print(f"\n  [ablação] Média ± desvio padrão ({nome_combinacao}, {n_folds} folds):")
         for k in media:
             print(f"    {k}: {media[k]:.4f} ± {desvio[k]:.4f}")
 
