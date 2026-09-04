@@ -15,10 +15,16 @@ TODOS_DATASETS = descobrir_datasets(BASE_DIR)
 # Duas listas fixas -- troque DATASETS_DESEJADOS pra escolher qual rodar.
 # CR não é mais usado (decisão de 31/08/2026). LG entra como binário (só 2
 # pastas, "1"/"2") e DIS/LA/NHL como multiclasse nativo.
-DATASETS_BINARIOS = ["CR-SameRes", "LG"] #, "UCSB"
-DATASETS_MULTICLASSE = ["DIS", "LA"] # , "NHL"
+DATASETS_BINARIOS = ["UCSB"] #, "CR-SameRes LG UCSB"
+DATASETS_MULTICLASSE = ["DIS", "LA"] # , "DIS LA NHL"
 
-DATASETS_DESEJADOS = DATASETS_MULTICLASSE  
+ESCOLHA = 1 # 1-Binários 2-Multiclasse
+
+if ESCOLHA == 1:
+    DATASETS_DESEJADOS = DATASETS_BINARIOS
+else:
+    DATASETS_DESEJADOS = DATASETS_MULTICLASSE
+
 DATASETS = [d for d in DATASETS_DESEJADOS if d in TODOS_DATASETS]
 
 # ------------------------------------------------------------
