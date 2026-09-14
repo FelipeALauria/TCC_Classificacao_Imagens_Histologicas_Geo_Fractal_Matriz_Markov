@@ -520,6 +520,13 @@ def pasta_modelo(pasta_saida, nome_dataset):
     return pasta
 
 
+def caminho_cache_dataset(pasta_saida, nome_dataset, size_maxL, mtf_q):
+    """Retorna o cache de predições específico da configuração do reshape."""
+    pasta = pasta_modelo(pasta_saida, nome_dataset)
+    configuracao = f"Q{mtf_q}_{size_maxL or 'auto'}"
+    return pasta / f"predicoes_{nome_dataset}_{configuracao}.csv"
+
+
 def descobrir_mtf_size(source, size_maxL, mtf_q=8, nomes_reshape=NOMES_RESHAPE_PADRAO):
     """Descobre o sufixo real dos arquivos MTF em disco pro Q pedido
     (mtf_q) e o size_maxL atual (ex. "MTF_Q8_N60") -- o N não é fixo, é o
@@ -759,8 +766,8 @@ def rodar_dataset(source, combinacoes_desejadas, rec_plot_size=None, MTF_size=No
               f"(< n_folds={n_folds}) -- StratifiedKFold não consegue dividir, pulando dataset.")
         return {}
 
-    caminho_splits = pasta_dataset / f"splits_kfold_{source.name}.json"
-    caminho_predicoes = pasta_dataset / f"predicoes_{source.name}.csv"
+    caminho_splits = pasta_dataset / f"splits_kfold_{source.name}_Q{mtf_q}_{size_maxL or 'auto'}.json"
+    caminho_predicoes = caminho_cache_dataset(pasta_saida, source.name, size_maxL, mtf_q)
     folds = gerar_ou_carregar_splits(
         ids_universo, labels_universo, n_splits=n_folds, seed=seed, caminho_splits=caminho_splits
     )
@@ -908,7 +915,8 @@ def mapear_canal_para_combinacao_base(combinacoes_base):
 
 
 def rodar_ablacao_softmax(source, combinacoes_ablacao, combinacoes_base, n_folds=5,
-                           pasta_saida="METRICAS", nomes_reshape=NOMES_RESHAPE_PADRAO):
+                           pasta_saida="METRICAS", nomes_reshape=NOMES_RESHAPE_PADRAO,
+                           size_maxL=None, mtf_q=8):
     """Calcula métricas de combinações multi-canal (2+ canais) combinando
     por soft voting (média das probabilidades softmax, id+fold a id+fold)
     as predições já salvas das combinações de canal único em
@@ -927,7 +935,7 @@ def rodar_ablacao_softmax(source, combinacoes_ablacao, combinacoes_base, n_folds
     """
     source = Path(source)
     pasta_dataset = pasta_modelo(pasta_saida, source.name)
-    caminho_predicoes = pasta_dataset / f"predicoes_{source.name}.csv"
+    caminho_predicoes = caminho_cache_dataset(pasta_saida, source.name, size_maxL, mtf_q)
     caminho_metricas = Path(pasta_saida) / "metricas.csv"
 
     mapa_canal_base = mapear_canal_para_combinacao_base(combinacoes_base)

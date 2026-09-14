@@ -1,6 +1,9 @@
 from pathlib import Path
 
-from functions import rodar_dataset, rodar_ablacao_softmax, comparar_softmax, pasta_modelo, descobrir_canais_reshape
+from functions import (
+    rodar_dataset, rodar_ablacao_softmax, comparar_softmax, pasta_modelo,
+    caminho_cache_dataset, descobrir_canais_reshape,
+)
 from graficos import plotar_comparacao_combinacoes
 
 
@@ -26,7 +29,9 @@ def rodar_resnet(source, combinacoes_base, combinacoes_ablacao=None, pasta_saida
     resumo_combinacoes = rodar_dataset(source, combinacoes_base, pasta_saida=pasta_saida, **kwargs)
 
     if combinacoes_ablacao:
-        kwargs_ablacao = {k: kwargs[k] for k in ("n_folds", "nomes_reshape") if k in kwargs}
+        kwargs_ablacao = {
+            k: kwargs[k] for k in ("n_folds", "nomes_reshape", "size_maxL", "mtf_q") if k in kwargs
+        }
         resumo_ablacao = rodar_ablacao_softmax(
             source, combinacoes_ablacao, combinacoes_base, pasta_saida=pasta_saida, **kwargs_ablacao
         )
@@ -47,7 +52,9 @@ def rodar_resnet(source, combinacoes_base, combinacoes_ablacao=None, pasta_saida
 
     nomes = list(resumo_combinacoes.keys())
     if len(nomes) >= 2:
-        caminho_predicoes = pasta_dataset / f"predicoes_{source.name}.csv"
+        caminho_predicoes = caminho_cache_dataset(
+            pasta_saida, source.name, kwargs.get("size_maxL"), kwargs.get("mtf_q", 8)
+        )
         comparacao = comparar_softmax(nomes[0], nomes[-1], caminho_csv=caminho_predicoes)
         comparacao.to_csv(pasta_dataset / f"comparacao_{nomes[0]}_vs_{nomes[-1]}_{source.name}.csv")
 

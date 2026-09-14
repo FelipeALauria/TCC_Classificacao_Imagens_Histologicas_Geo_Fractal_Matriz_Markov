@@ -15,7 +15,7 @@ TODOS_DATASETS = descobrir_datasets(BASE_DIR)
 # Duas listas fixas -- troque DATASETS_DESEJADOS pra escolher qual rodar.
 # CR não é mais usado (decisão de 31/08/2026). LG entra como binário (só 2
 # pastas, "1"/"2") e DIS/LA/NHL como multiclasse nativo.
-DATASETS_BINARIOS = ["UCSB"] #, "CR-SameRes LG UCSB"
+DATASETS_BINARIOS = ["CR-SameRes", "LG", "UCSB"] #, "CR-SameRes LG UCSB"
 DATASETS_MULTICLASSE = ["DIS", "LA"] # , "DIS LA NHL"
 
 ESCOLHA = 1 # 1-Binários 2-Multiclasse
@@ -80,11 +80,11 @@ COMBINACOES_ABLACAO = {
     "recplot+mtf+gasf+gadf": ["recplot", "mtf", "gasf", "gadf"],
 }
 
-SIZE_MAXL = "maxL25"
+SIZE_MAXL = "maxL41"
 # MTF_size (o "N" no nome do arquivo) não é fixado à mão -- é descoberto
 # automaticamente a partir do que já existe em disco pra SIZE_MAXL + MTF_Q
 # (ver descobrir_mtf_size em functions.py). Só o Q é configurável aqui.
-MTF_Q = 8
+MTF_Q = 32 # 8 16 32 64
 REC_PLOT_SIZE = "rp"
 
 PASTA_SAIDA = Path("METRICAS")
