@@ -15,7 +15,7 @@ TODOS_DATASETS = descobrir_datasets(BASE_DIR)
 # Duas listas fixas -- troque DATASETS_DESEJADOS pra escolher qual rodar.
 # CR não é mais usado (decisão de 31/08/2026). LG entra como binário (só 2
 # pastas, "1"/"2") e DIS/LA/NHL como multiclasse nativo.
-DATASETS_BINARIOS = ["CR-SameRes", "LG", "UCSB"] #, "CR-SameRes LG UCSB"
+DATASETS_BINARIOS = ["CR-SameRes"] #, "CR-SameRes LG UCSB"
 DATASETS_MULTICLASSE = ["DIS", "LA"] # , "DIS LA NHL"
 
 ESCOLHA = 1 # 1-Binários 2-Multiclasse
@@ -45,46 +45,54 @@ COMBINACOES_BASE = {
 # Ablação -- combinações de 2+ canais. Não treinam CNN nenhuma: são
 # calculadas combinando por soft voting (média das probabilidades softmax)
 # os resultados já salvos das combinações de COMBINACOES_BASE acima (ver
-# rodar_ablacao_softmax em functions.py). Combinação com canal ainda não
+# rodar_ablacao_softmax em functions.py). Combinação com canal ainda não    
 # gerado num dataset, ou cuja base ainda não rodou, é pulada só pra esse
 # dataset.
 #
 # Descomente/comente as combinações que quiser incluir na rodada:
 # ------------------------------------------------------------
 COMBINACOES_ABLACAO = {
-    "img+recplot": ["img", "recplot"],
+    # "img+recplot": ["img", "recplot"],
     "img+mtf": ["img", "mtf"],
-    "img+gasf": ["img", "gasf"],
-    "img+gadf": ["img", "gadf"],
+    # "img+gasf": ["img", "gasf"],
+    # "img+gadf": ["img", "gadf"],
     "img+recplot+mtf": ["img", "recplot", "mtf"],
-    "img+recplot+gasf": ["img", "recplot", "gasf"],
-    "img+recplot+gadf": ["img", "recplot", "gadf"],
+    # "img+recplot+gasf": ["img", "recplot", "gasf"],
+    # "img+recplot+gadf": ["img", "recplot", "gadf"],
     "img+mtf+gasf": ["img", "mtf", "gasf"],
     "img+mtf+gadf": ["img", "mtf", "gadf"],
-    "img+gasf+gadf": ["img", "gasf", "gadf"],
+    # "img+gasf+gadf": ["img", "gasf", "gadf"],
     "img+recplot+mtf+gasf": ["img", "recplot", "mtf", "gasf"],
     "img+recplot+mtf+gadf": ["img", "recplot", "mtf", "gadf"],
-    "img+recplot+gasf+gadf": ["img", "recplot", "gasf", "gadf"],
+    # "img+recplot+gasf+gadf": ["img", "recplot", "gasf", "gadf"],
     "img+mtf+gasf+gadf": ["img", "mtf", "gasf", "gadf"],
     "img+recplot+mtf+gasf+gadf": ["img", "recplot", "mtf", "gasf", "gadf"],
     "recplot+mtf": ["recplot", "mtf"],
-    "recplot+gasf": ["recplot", "gasf"],
-    "recplot+gadf": ["recplot", "gadf"],
+    # "recplot+gasf": ["recplot", "gasf"],
+    # "recplot+gadf": ["recplot", "gadf"],
     "mtf+gasf": ["mtf", "gasf"],
     "mtf+gadf": ["mtf", "gadf"],
-    "gasf+gadf": ["gasf", "gadf"],
+    # "gasf+gadf": ["gasf", "gadf"],
     "recplot+mtf+gasf": ["recplot", "mtf", "gasf"],
     "recplot+mtf+gadf": ["recplot", "mtf", "gadf"],
-    "recplot+gasf+gadf": ["recplot", "gasf", "gadf"],
+    # "recplot+gasf+gadf": ["recplot", "gasf", "gadf"],
     "mtf+gasf+gadf": ["mtf", "gasf", "gadf"],
     "recplot+mtf+gasf+gadf": ["recplot", "mtf", "gasf", "gadf"],
 }
 
-SIZE_MAXL = "maxL41"
 # MTF_size (o "N" no nome do arquivo) não é fixado à mão -- é descoberto
-# automaticamente a partir do que já existe em disco pra SIZE_MAXL + MTF_Q
-# (ver descobrir_mtf_size em functions.py). Só o Q é configurável aqui.
-MTF_Q = 32 # 8 16 32 64
+# automaticamente a partir do que já existe em disco pra cada SIZE_MAXL +
+# MTF_Q (ver descobrir_mtf_size em functions.py). SIZE_MAXL e MTF_Q agora são
+# listas: o orquestrador roda o pipeline inteiro (treino + ablação) uma vez
+# pra cada combinação maxL x Q, cobrindo tudo que já foi gerado em disco
+# (conferido em Datasets/.../MTF/*/maxL*/ -- ordem crescente, começando em
+# maxL7; ver também Scripts/Fractais/orquestradorFractais.m -- MAXL_LIST e
+# MTF_Q_LIST). Saída (predicoes/splits) fica separada por maxL e Q
+# automaticamente (ver caminho_cache_dataset em functions.py); metricas.csv
+# agora grava size_maxL e mtf_q em colunas próprias pra dar pra distinguir
+# as linhas depois.
+SIZE_MAXL_LIST = ["maxL15", "maxL25", "maxL41"]
+MTF_Q_LIST = [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384]
 REC_PLOT_SIZE = "rp"
 
 PASTA_SAIDA = Path("METRICAS")
@@ -135,9 +143,14 @@ if __name__ == "__main__":
     print(f"Datasets encontrados em {BASE_DIR}: {DATASETS}")
     print(f"Combinações base (treinam CNN): {list(COMBINACOES_BASE.keys())}")
     print(f"Combinações de ablação (softmax, sem retreino): {list(COMBINACOES_ABLACAO.keys())}")
+    print(f"maxL a rodar (SIZE_MAXL_LIST): {SIZE_MAXL_LIST}")
+    print(f"Bits de MTF a rodar (MTF_Q_LIST): {MTF_Q_LIST}")
 
-    rodar_todos_datasets(
-        DATASETS, COMBINACOES_BASE, COMBINACOES_ABLACAO, BASE_DIR,
-        pasta_saida=PASTA_SAIDA,
-        size_maxL=SIZE_MAXL, mtf_q=MTF_Q, rec_plot_size=REC_PLOT_SIZE,
-    )
+    for size_maxL in SIZE_MAXL_LIST:
+        for mtf_q in MTF_Q_LIST:
+            print(f"\n{'@' * 60}\n{size_maxL} | MTF_Q = {mtf_q}\n{'@' * 60}")
+            rodar_todos_datasets(
+                DATASETS, COMBINACOES_BASE, COMBINACOES_ABLACAO, BASE_DIR,
+                pasta_saida=PASTA_SAIDA,
+                size_maxL=size_maxL, mtf_q=mtf_q, rec_plot_size=REC_PLOT_SIZE,
+            )

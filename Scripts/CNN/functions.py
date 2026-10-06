@@ -309,6 +309,8 @@ CAMPOS_METRICAS_CSV = [
     "data",
     "modelo",
     "dataset",
+    "size_maxL",
+    "mtf_q",
     "combinacao",
     "fold",
     "acuracia",
@@ -337,7 +339,8 @@ def _proximo_id_run(caminho_csv):
 
 def salva_metrica_csv(modelo, dataset, combinacao, precisao, recall, f1,
                        acuracia=None, auc=None, perda_treino=None, fold=None,
-                       caminho_csv="metricas.csv", sobrescrever=False):
+                       mtf_q=None, size_maxL=None, caminho_csv="metricas.csv",
+                       sobrescrever=False):
     """Adiciona uma linha em metricas.csv (append; cria header se não
     existir). sobrescrever=True reescreve o arquivo do zero (id_run reinicia
     em 1).
@@ -346,6 +349,13 @@ def salva_metrica_csv(modelo, dataset, combinacao, precisao, recall, f1,
     - data: hoje, formato yyyymmdd
     - combinacao: ex. "img_original", "img_original+mtf"
     - fold: 1..n_folds, ou "media" pra linha com a média dos folds
+    - mtf_q: bits de quantização do MTF dessa rodada (None quando a
+      combinação não envolve canal MTF), pra distinguir linhas de
+      combinações com o mesmo nome rodadas com Q diferentes (ver MTF_Q_LIST
+      em orquestrador.py)
+    - size_maxL: maxL dessa rodada (ex. "maxL15"), pra distinguir linhas de
+      combinações com o mesmo nome rodadas com maxL diferentes (ver
+      SIZE_MAXL_LIST em orquestrador.py)
     - precisao/recall/f1: obrigatórias; acuracia/auc/perda_treino: opcionais
 
     Retorna o id_run gerado.
@@ -360,6 +370,8 @@ def salva_metrica_csv(modelo, dataset, combinacao, precisao, recall, f1,
         "data": date.today().strftime("%Y%m%d"),
         "modelo": modelo,
         "dataset": dataset,
+        "size_maxL": size_maxL if size_maxL is not None else "",
+        "mtf_q": mtf_q if mtf_q is not None else "",
         "combinacao": combinacao,
         "fold": fold if fold is not None else "",
         "acuracia": acuracia if acuracia is not None else "",
@@ -861,6 +873,7 @@ def rodar_dataset(source, combinacoes_desejadas, rec_plot_size=None, MTF_size=No
                     precisao=metricas["precisao"], recall=metricas["recall"], f1=metricas["f1"],
                     acuracia=metricas["acuracia"], auc=metricas["auc"],
                     perda_treino=resultado["loss_treino_final"], fold=i_fold,
+                    mtf_q=mtf_q, size_maxL=size_maxL,
                     caminho_csv=pasta_saida / "metricas.csv",
                 )
 
@@ -887,6 +900,7 @@ def rodar_dataset(source, combinacoes_desejadas, rec_plot_size=None, MTF_size=No
                 modelo="resnet50", dataset=source.name, combinacao=nome_combinacao,
                 precisao=media["precisao"], recall=media["recall"], f1=media["f1"],
                 acuracia=media["acuracia"], auc=media["auc"], fold="media",
+                mtf_q=mtf_q, size_maxL=size_maxL,
                 caminho_csv=pasta_saida / "metricas.csv",
             )
 
@@ -1008,6 +1022,7 @@ def rodar_ablacao_softmax(source, combinacoes_ablacao, combinacoes_base, n_folds
                 modelo="ensemble_softmax", dataset=source.name, combinacao=nome_combinacao,
                 precisao=metricas["precisao"], recall=metricas["recall"], f1=metricas["f1"],
                 acuracia=metricas["acuracia"], auc=metricas["auc"], fold=i_fold,
+                mtf_q=mtf_q, size_maxL=size_maxL,
                 caminho_csv=caminho_metricas,
             )
             metricas_folds.append(metricas)
@@ -1025,6 +1040,7 @@ def rodar_ablacao_softmax(source, combinacoes_ablacao, combinacoes_base, n_folds
                 modelo="ensemble_softmax", dataset=source.name, combinacao=nome_combinacao,
                 precisao=media["precisao"], recall=media["recall"], f1=media["f1"],
                 acuracia=media["acuracia"], auc=media["auc"], fold="media",
+                mtf_q=mtf_q, size_maxL=size_maxL,
                 caminho_csv=caminho_metricas,
             )
 
