@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from functions_vit import (
@@ -60,7 +61,8 @@ if __name__ == "__main__":
     # Uso manual: 1 dataset, 1 modelo. Pra rodar tudo, ver orquestrador_vit.py.
     from itertools import combinations
 
-    source = Path(r"C:/Users/felip/Desktop/Facul/TCC/Scripts_Datasets/Datasets/Imagens Histológicas/LG")
+    base_dir = Path(os.environ.get("TCC_DATASETS", Path(__file__).resolve().parents[2] / "Datasets" / "Imagens Histológicas"))
+    source = base_dir / "LG"
     modelo = "vit_b16"  # ou "coatnet"
 
     canais_reshape = descobrir_canais_reshape(source)

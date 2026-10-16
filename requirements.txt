@@ -1,4 +1,7 @@
 # Python dependencies
+# GPU: o torch do PyPI no Windows vem só CPU ('+cpu'). Instale a versão CUDA:
+#   pip install --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu128
+# timm (ViT/CoAtNet) e scipy (fractais .py) também são usados.
 numpy>=1.24.0
 matplotlib>=3.8.0
 Pillow>=10.0.0

@@ -646,13 +646,36 @@ class _HistologiaDataset(Dataset):
         return self.X[idx], self.y[idx]
 
 
-_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+EXIGIR_GPU = True  # False permite treinar na CPU (bem mais lento)
+
+
+def _escolher_device():
+    if torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = True
+        print(f"[device] GPU: {torch.cuda.get_device_name(0)}")
+        return torch.device("cuda")
+    print(f"[device] AVISO: GPU não encontrada, usando CPU (torch {torch.__version__}).")
+    return torch.device("cpu")
+
+
+def _checar_gpu():
+    if EXIGIR_GPU and _DEVICE.type != "cuda":
+        raise RuntimeError(
+            f"GPU não disponível pro PyTorch (torch {torch.__version__}). Se a versão termina em "
+            "'+cpu', reinstale o torch com CUDA (ver README) ou ponha EXIGIR_GPU = False.")
+
+
+_DEVICE = _escolher_device()
 
 
 def treinar_e_avaliar_fold(X_treino, y_treino, X_val, y_val, X_teste, y_teste, ids_teste,
                             n_canais, n_classes, batch_size=8, n_epocas=20, lr=1e-4):
     """Treina uma ResNet50 do zero (conv1 adaptada pra n_canais, fc pra
-    n_classes) num fold e retorna as predições no conjunto de teste."""
+    n_classes) num fold e retorna as predições no conjunto de teste.
+    Na GPU usa precisão mista (AMP)."""
+    _checar_gpu()
+    usar_amp = _DEVICE.type == "cuda"
+    pin = _DEVICE.type == "cuda"
     X_treino_t = torch.tensor(np.stack(X_treino), dtype=torch.float32) / 255.0
     X_val_t = torch.tensor(np.stack(X_val), dtype=torch.float32) / 255.0
     X_teste_t = torch.tensor(np.stack(X_teste), dtype=torch.float32) / 255.0
@@ -660,13 +683,14 @@ def treinar_e_avaliar_fold(X_treino, y_treino, X_val, y_val, X_teste, y_teste, i
     y_val_t = torch.tensor(y_val, dtype=torch.long)
     y_teste_t = torch.tensor(y_teste, dtype=torch.long)
 
-    train_loader = DataLoader(_HistologiaDataset(X_treino_t, y_treino_t), batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(_HistologiaDataset(X_val_t, y_val_t), batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(_HistologiaDataset(X_teste_t, y_teste_t), batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(_HistologiaDataset(X_treino_t, y_treino_t), batch_size=batch_size, shuffle=True, pin_memory=pin)
+    val_loader = DataLoader(_HistologiaDataset(X_val_t, y_val_t), batch_size=batch_size, shuffle=False, pin_memory=pin)
+    test_loader = DataLoader(_HistologiaDataset(X_teste_t, y_teste_t), batch_size=batch_size, shuffle=False, pin_memory=pin)
 
     modelo = criar_resnet50_nch(in_channels=n_canais, pretrained=True, num_classes=n_classes).to(_DEVICE)
     criterio = nn.CrossEntropyLoss()
     otimizador = optim.Adam(modelo.parameters(), lr=lr)
+    scaler = torch.amp.GradScaler("cuda", enabled=usar_amp)
 
     historico_loss_treino, historico_loss_val = [], []
 
@@ -674,22 +698,26 @@ def treinar_e_avaliar_fold(X_treino, y_treino, X_val, y_val, X_teste, y_teste, i
         modelo.train()
         perda_total = 0.0
         for X_batch, y_batch in train_loader:
-            X_batch, y_batch = X_batch.to(_DEVICE), y_batch.to(_DEVICE)
+            X_batch = X_batch.to(_DEVICE, non_blocking=True)
+            y_batch = y_batch.to(_DEVICE, non_blocking=True)
             otimizador.zero_grad()
-            saidas = modelo(X_batch)
-            perda = criterio(saidas, y_batch)
-            perda.backward()
-            otimizador.step()
+            with torch.autocast(device_type=_DEVICE.type, enabled=usar_amp):
+                saidas = modelo(X_batch)
+                perda = criterio(saidas, y_batch)
+            scaler.scale(perda).backward()
+            scaler.step(otimizador)
+            scaler.update()
             perda_total += perda.item() * X_batch.size(0)
         historico_loss_treino.append(perda_total / len(train_loader.dataset))
 
         modelo.eval()
         perda_val_total, acertos_val = 0.0, 0
-        with torch.no_grad():
+        with torch.no_grad(), torch.autocast(device_type=_DEVICE.type, enabled=usar_amp):
             for X_batch, y_batch in val_loader:
-                X_batch, y_batch = X_batch.to(_DEVICE), y_batch.to(_DEVICE)
+                X_batch = X_batch.to(_DEVICE, non_blocking=True)
+                y_batch = y_batch.to(_DEVICE, non_blocking=True)
                 saidas = modelo(X_batch)
-                perda = criterio(saidas, y_batch)
+                perda = criterio(saidas.float(), y_batch)
                 perda_val_total += perda.item() * X_batch.size(0)
                 acertos_val += (torch.argmax(saidas, dim=1) == y_batch).sum().item()
         historico_loss_val.append(perda_val_total / len(val_loader.dataset))
@@ -699,15 +727,19 @@ def treinar_e_avaliar_fold(X_treino, y_treino, X_val, y_val, X_teste, y_teste, i
 
     modelo.eval()
     y_true, y_pred, y_prob_matriz = [], [], []
-    with torch.no_grad():
+    with torch.no_grad(), torch.autocast(device_type=_DEVICE.type, enabled=usar_amp):
         for X_batch, y_batch in test_loader:
-            X_batch = X_batch.to(_DEVICE)
-            saidas = modelo(X_batch)
+            X_batch = X_batch.to(_DEVICE, non_blocking=True)
+            saidas = modelo(X_batch).float()
             probs = torch.softmax(saidas, dim=1)
             preds = torch.argmax(saidas, dim=1)
             y_true.extend(y_batch.numpy())
             y_pred.extend(preds.cpu().numpy())
             y_prob_matriz.extend(probs.cpu().numpy())
+
+    del modelo
+    if usar_amp:
+        torch.cuda.empty_cache()
 
     return {
         "y_true": np.array(y_true),

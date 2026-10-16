@@ -8,6 +8,7 @@ Saída em Scripts/VisiumTransformers/METRICAS/ (separada da CNN). Os folds
 são os mesmos da ResNet: se o splits_kfold de um dataset/config já existir
 em Scripts/CNN/METRICAS/, ele é reaproveitado (só leitura).
 """
+import os
 from pathlib import Path
 
 from functions_vit import descobrir_datasets
@@ -17,7 +18,11 @@ from vit import rodar_vit
 # CONFIGURAÇÃO
 # ============================================================
 
-BASE_DIR = Path(r"C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas")
+# Raiz do repositório (Scripts_Datasets), achada a partir deste arquivo: funciona
+# no Windows e no servidor sem editar nada. Pra usar outra pasta de datasets:
+#   export TCC_DATASETS="/caminho/para/Imagens Histológicas"
+RAIZ_REPO = Path(__file__).resolve().parents[2]
+BASE_DIR = Path(os.environ.get("TCC_DATASETS", RAIZ_REPO / "Datasets" / "Imagens Histológicas"))
 PASTA_SAIDA = Path(__file__).resolve().parent / "METRICAS"
 
 TODOS_DATASETS = descobrir_datasets(BASE_DIR)

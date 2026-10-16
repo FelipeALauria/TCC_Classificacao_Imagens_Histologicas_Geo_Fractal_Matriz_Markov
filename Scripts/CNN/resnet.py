@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from functions import (
@@ -66,7 +67,8 @@ if __name__ == "__main__":
     # suportar (base) e calcula por softmax -- sem retreinar nada -- todas
     # as combinações de 2+ canais possíveis com o que existe em disco
     # (ablação). Pra rodar vários datasets de uma vez, ver orquestrador.py.
-    source = Path(r"C:/Users/felip/Desktop/Facul/TCC/Scripts_Datasets/Datasets/Imagens Histológicas/CR")
+    base_dir = Path(os.environ.get("TCC_DATASETS", Path(__file__).resolve().parents[2] / "Datasets" / "Imagens Histológicas"))
+    source = base_dir / "CR"
 
     from itertools import combinations
 

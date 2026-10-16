@@ -646,7 +646,26 @@ class _HistologiaDataset(Dataset):
         return self.X[idx], self.y[idx]
 
 
-_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+EXIGIR_GPU = True  # False permite treinar na CPU (bem mais lento)
+
+
+def _escolher_device():
+    if torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = True
+        print(f"[device] GPU: {torch.cuda.get_device_name(0)}")
+        return torch.device("cuda")
+    print(f"[device] AVISO: GPU não encontrada, usando CPU (torch {torch.__version__}).")
+    return torch.device("cpu")
+
+
+def _checar_gpu():
+    if EXIGIR_GPU and _DEVICE.type != "cuda":
+        raise RuntimeError(
+            f"GPU não disponível pro PyTorch (torch {torch.__version__}). Se a versão termina em "
+            "'+cpu', reinstale o torch com CUDA (ver README) ou ponha EXIGIR_GPU = False.")
+
+
+_DEVICE = _escolher_device()
 
 
 def treinar_e_avaliar_fold(X_treino, y_treino, X_val, y_val, X_teste, y_teste, ids_teste,
@@ -655,7 +674,9 @@ def treinar_e_avaliar_fold(X_treino, y_treino, X_val, y_val, X_teste, y_teste, i
     """Fine-tuning de um modelo do timm num fold: AdamW + warmup linear +
     cosseno, AMP na GPU, e teste com os pesos da época de menor loss de
     validação. Retorna as predições no conjunto de teste."""
+    _checar_gpu()
     rede = criar_modelo(modelo, n_canais, n_classes).to(_DEVICE)
+    pin = _DEVICE.type == "cuda"
 
     X_treino_t = normalizar(torch.tensor(np.stack(X_treino), dtype=torch.float32), rede)
     X_val_t = normalizar(torch.tensor(np.stack(X_val), dtype=torch.float32), rede)
@@ -664,9 +685,9 @@ def treinar_e_avaliar_fold(X_treino, y_treino, X_val, y_val, X_teste, y_teste, i
     y_val_t = torch.tensor(y_val, dtype=torch.long)
     y_teste_t = torch.tensor(y_teste, dtype=torch.long)
 
-    train_loader = DataLoader(_HistologiaDataset(X_treino_t, y_treino_t), batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(_HistologiaDataset(X_val_t, y_val_t), batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(_HistologiaDataset(X_teste_t, y_teste_t), batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(_HistologiaDataset(X_treino_t, y_treino_t), batch_size=batch_size, shuffle=True, pin_memory=pin)
+    val_loader = DataLoader(_HistologiaDataset(X_val_t, y_val_t), batch_size=batch_size, shuffle=False, pin_memory=pin)
+    test_loader = DataLoader(_HistologiaDataset(X_teste_t, y_teste_t), batch_size=batch_size, shuffle=False, pin_memory=pin)
 
     criterio = nn.CrossEntropyLoss()
     otimizador = optim.AdamW(rede.parameters(), lr=lr, weight_decay=weight_decay)
@@ -692,7 +713,7 @@ def treinar_e_avaliar_fold(X_treino, y_treino, X_val, y_val, X_teste, y_teste, i
         rede.train()
         perda_total = 0.0
         for X_batch, y_batch in train_loader:
-            X_batch, y_batch = X_batch.to(_DEVICE), y_batch.to(_DEVICE)
+            X_batch, y_batch = X_batch.to(_DEVICE, non_blocking=True), y_batch.to(_DEVICE, non_blocking=True)
             otimizador.zero_grad()
             with torch.autocast(device_type=_DEVICE.type, enabled=usar_amp):
                 saidas = rede(X_batch)
@@ -708,7 +729,7 @@ def treinar_e_avaliar_fold(X_treino, y_treino, X_val, y_val, X_teste, y_teste, i
         perda_val_total, acertos_val = 0.0, 0
         with torch.no_grad(), torch.autocast(device_type=_DEVICE.type, enabled=usar_amp):
             for X_batch, y_batch in val_loader:
-                X_batch, y_batch = X_batch.to(_DEVICE), y_batch.to(_DEVICE)
+                X_batch, y_batch = X_batch.to(_DEVICE, non_blocking=True), y_batch.to(_DEVICE, non_blocking=True)
                 saidas = rede(X_batch)
                 perda = criterio(saidas.float(), y_batch)
                 perda_val_total += perda.item() * X_batch.size(0)
@@ -731,7 +752,7 @@ def treinar_e_avaliar_fold(X_treino, y_treino, X_val, y_val, X_teste, y_teste, i
     y_true, y_pred, y_prob_matriz = [], [], []
     with torch.no_grad(), torch.autocast(device_type=_DEVICE.type, enabled=usar_amp):
         for X_batch, y_batch in test_loader:
-            X_batch = X_batch.to(_DEVICE)
+            X_batch = X_batch.to(_DEVICE, non_blocking=True)
             saidas = rede(X_batch).float()
             probs = torch.softmax(saidas, dim=1)
             preds = torch.argmax(saidas, dim=1)

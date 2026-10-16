@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from functions import descobrir_datasets
@@ -7,7 +8,11 @@ from resnet import rodar_resnet
 # CONFIGURAÇÃO
 # ============================================================
 
-BASE_DIR = Path(r"C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas")
+# Raiz do repositório (Scripts_Datasets), achada a partir deste arquivo: funciona
+# no Windows e no servidor sem editar nada. Pra usar outra pasta de datasets:
+#   export TCC_DATASETS="/caminho/para/Imagens Histológicas"
+RAIZ_REPO = Path(__file__).resolve().parents[2]
+BASE_DIR = Path(os.environ.get("TCC_DATASETS", RAIZ_REPO / "Datasets" / "Imagens Histológicas"))
 
 # datasets = toda subpasta de BASE_DIR com pelo menos uma classe com .png
 TODOS_DATASETS = descobrir_datasets(BASE_DIR)
@@ -15,7 +20,7 @@ TODOS_DATASETS = descobrir_datasets(BASE_DIR)
 # Duas listas fixas -- troque DATASETS_DESEJADOS pra escolher qual rodar.
 # CR não é mais usado (decisão de 31/08/2026). LG entra como binário (só 2
 # pastas, "1"/"2") e DIS/LA/NHL como multiclasse nativo.
-DATASETS_BINARIOS = ["CR-SameRes"] #, "CR-SameRes LG UCSB"
+DATASETS_BINARIOS = ["LG", "UCSB"] #, "CR-SameRes LG UCSB"
 DATASETS_MULTICLASSE = ["DIS", "LA"] # , "DIS LA NHL"
 
 ESCOLHA = 1 # 1-Binários 2-Multiclasse
@@ -95,7 +100,7 @@ SIZE_MAXL_LIST = ["maxL15", "maxL25", "maxL41"]
 MTF_Q_LIST = [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384]
 REC_PLOT_SIZE = "rp"
 
-PASTA_SAIDA = Path("METRICAS")
+PASTA_SAIDA = Path(__file__).resolve().parent / "METRICAS"
 
 
 # ============================================================
