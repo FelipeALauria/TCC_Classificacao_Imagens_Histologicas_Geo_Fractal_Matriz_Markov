@@ -59,27 +59,32 @@ def _mascaras(patches, centros, r, distancia):
 
 def _rotular_4conexo(mask):
     """Equivalente ao bwlabel(box, 4) aplicado em lote: devolve
-    (n_componentes, tamanho_maior_componente) por caixa. Propagação do
-    menor índice entre vizinhos 4-conexos + pointer jumping até convergir."""
+    (n_componentes, tamanho_maior_componente) por caixa. Hooking na raiz +
+    pointer jumping (estilo FastSV): converge em ~6 passadas em vez de ~r."""
     L, r, _ = mask.shape
     n = r * r
-    idx = torch.arange(n, device=mask.device, dtype=torch.int64).view(1, r, r)
-    lab = torch.where(mask, idx, n)
-    fundo = torch.full((L, 1), n, device=mask.device, dtype=torch.int64)
+    mflat = mask.reshape(L, n)
+    idx = torch.arange(n, device=mask.device, dtype=torch.int64).expand(L, n)
+    f = torch.full((L, n + 1), n, device=mask.device, dtype=torch.int64)
+    f[:, :n] = torch.where(mflat, idx, n)
     while True:
-        m = lab.clone()
-        m[:, 1:, :] = torch.minimum(m[:, 1:, :], lab[:, :-1, :])
-        m[:, :-1, :] = torch.minimum(m[:, :-1, :], lab[:, 1:, :])
-        m[:, :, 1:] = torch.minimum(m[:, :, 1:], lab[:, :, :-1])
-        m[:, :, :-1] = torch.minimum(m[:, :, :-1], lab[:, :, 1:])
-        m = torch.where(mask, m, n).view(L, n)
-        m = torch.minimum(m, torch.gather(torch.cat([m, fundo], 1), 1, m))
-        m = m.view(L, r, r)
-        if torch.equal(m, lab):
+        lab = f[:, :n].view(L, r, r)
+        nm = lab.clone()
+        nm[:, 1:, :] = torch.minimum(nm[:, 1:, :], lab[:, :-1, :])
+        nm[:, :-1, :] = torch.minimum(nm[:, :-1, :], lab[:, 1:, :])
+        nm[:, :, 1:] = torch.minimum(nm[:, :, 1:], lab[:, :, :-1])
+        nm[:, :, :-1] = torch.minimum(nm[:, :, :-1], lab[:, :, 1:])
+        nm = torch.where(mflat, nm.view(L, n), n)
+        g = f.clone()
+        g.scatter_reduce_(1, f[:, :n], nm, reduce="amin")  # pendura o menor vizinho na raiz
+        g[:, :n] = torch.minimum(g[:, :n], nm)
+        g = torch.gather(g, 1, g)  # pointer jumping
+        g = torch.gather(g, 1, g)
+        if torch.equal(g, f):
             break
-        lab = m
-    flat = lab.view(L, n)
-    n_comp = (flat == idx.view(1, n)).sum(1)
+        f = g
+    flat = f[:, :n]
+    n_comp = ((flat == idx) & mflat).sum(1)
     contagem = torch.zeros((L, n + 1), device=mask.device, dtype=torch.int64)
     contagem.scatter_add_(1, flat, torch.ones_like(flat))
     maior = contagem[:, :n].amax(1)
