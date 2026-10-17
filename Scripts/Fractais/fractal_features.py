@@ -113,8 +113,9 @@ def curvas_imagem(img, maxL, device, memoria_gb=1.5):
                 for d in DISTANCIAS}
         for y0 in range(0, nl, linhas_por_bloco):
             y1 = min(nl, y0 + linhas_por_bloco)
-            patches = janelas[:, y0:y1].reshape(3, -1, r, r)
-            cent = centros[:, y0:y1].reshape(3, -1)
+            # .contiguous(): com bloco de 1 linha o reshape devolve view não contígua e o .view() quebra
+            patches = janelas[:, y0:y1].reshape(3, -1, r, r).contiguous()
+            cent = centros[:, y0:y1].reshape(3, -1).contiguous()
             for d in DISTANCIAS:
                 mask = _mascaras(patches, cent, r, d)
                 cnt = mask.sum((1, 2))
