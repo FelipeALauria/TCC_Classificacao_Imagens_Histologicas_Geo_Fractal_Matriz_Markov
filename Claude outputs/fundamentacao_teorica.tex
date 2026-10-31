@@ -1,0 +1,279 @@
+% =====================================================================
+% Fundamentação Teórica — versão revisada (coesão e fluxo)
+% Marcadores "% [CITAR]" indicam onde inserir referências depois.
+% Ordem: segue o fluxo do pipeline (imagem -> visão computacional
+% -> fractais -> reshape -> aprendizado profundo -> ensemble -> métricas).
+% =====================================================================
+
+\section{Fundamentação Teórica}
+
+% ---------------------------------------------------------------------
+\subsection{Imagens Histológicas}
+\hspace{+15pt}
+
+% TODO: MUDAR TEMPLATE (TCC)
+
+As imagens histológicas retratam a estrutura dos tecidos biológicos, permitindo observar sua organização e composição. Elas são obtidas a partir de técnicas de preparo e coloração de amostras, que tornam visíveis, ao microscópio, os diferentes componentes celulares.
+
+Esse preparo envolve, de modo geral, as etapas de fixação, processamento, inclusão em parafina, corte em lâminas finas e, por fim, coloração. Dentre os corantes empregados, a combinação de Hematoxilina e Eosina (H\&E) é a mais difundida: enquanto a hematoxilina tinge estruturas ácidas, como o núcleo, em tons de azul e roxo, a eosina destaca estruturas básicas, como o citoplasma e a matriz extracelular, em tons de rosa. % [CITAR]
+É justamente esse contraste que permite ao patologista distinguir os componentes do tecido e avaliar aspectos como o tamanho e a forma dos núcleos, a densidade celular e a disposição das glândulas.
+
+Com a digitalização das lâminas por microscópios e escâneres, essas amostras passam a ser armazenadas como imagens digitais coloridas, geralmente no espaço de cores RGB. A partir desse momento, torna-se possível aplicar técnicas computacionais diretamente sobre elas. % [CITAR]
+
+Essa possibilidade é relevante porque, embora a análise histológica seja uma das principais ferramentas para o diagnóstico de diversas doenças, em especial do câncer, sua execução manual é demorada, depende da experiência do especialista e está sujeita a divergências de interpretação entre observadores. Soma-se a isso o fato de que variações no processo de coloração, na iluminação e no equipamento de aquisição podem alterar a aparência das amostras, mesmo quando pertencem a uma mesma classe. % [CITAR]
+
+Diante desse cenário, a análise computacional surge como alternativa para identificar características como forma, textura, cor e organização dos tecidos. Tais informações podem alimentar métodos de processamento de imagens e de aprendizado de máquina voltados à classificação de diferentes condições histológicas. Sistemas com esse propósito são conhecidos como sistemas de diagnóstico auxiliado por computador (CAD, do inglês \textit{Computer-Aided Diagnosis}) e buscam oferecer uma segunda opinião ao especialista, tornando o diagnóstico mais ágil e menos subjetivo. % [CITAR]
+
+% ---------------------------------------------------------------------
+\subsection{Visão Computacional}
+\hspace{+15pt}
+
+Para que um sistema CAD consiga interpretar essas amostras, recorre-se à visão computacional, área da computação dedicada a extrair informações de imagens e vídeos por meio de algoritmos. Entre suas aplicações, destacam-se o processamento de imagens, a extração de características e o reconhecimento de padrões visuais.
+
+Do ponto de vista computacional, uma imagem digital colorida corresponde a uma matriz de dimensão $H \times W \times C$, na qual $H$ e $W$ indicam a altura e a largura em pixels, e $C$, o número de canais. Em imagens RGB, por exemplo, $C = 3$, de modo que cada pixel é descrito pelas intensidades de vermelho, verde e azul.
+
+Sobre essa representação, um sistema tradicional de classificação costuma ser organizado em quatro etapas: aquisição, pré-processamento, extração de atributos e classificação. No pré-processamento, a imagem pode ser redimensionada, normalizada ou ter seu ruído atenuado. Em seguida, na extração de atributos, ela é resumida por um conjunto de valores numéricos, chamado vetor de atributos, que sintetiza propriedades relevantes como cor, textura e forma. Por último, um classificador emprega esse vetor para associar a amostra a uma das classes do problema. % [CITAR]
+
+Nas abordagens clássicas, tais descritores são definidos manualmente com base em conhecimento matemático ou do domínio, sendo por isso chamados de atributos \textit{handcrafted}. Já nas abordagens de aprendizado profundo, extração e classificação são aprendidas em conjunto, diretamente a partir dos dados. Este trabalho combina as duas perspectivas: descritores fractais \textit{handcrafted} são extraídos das amostras e, posteriormente, reorganizados em forma de imagem para servirem de entrada a modelos profundos.
+
+Desse modo, no contexto histológico, a visão computacional viabiliza o uso de técnicas automáticas para caracterizar os tecidos e apoiar a classificação de patologias.
+
+% ---------------------------------------------------------------------
+\subsection{Atributos Fractais}
+\hspace{+15pt}
+
+Entre os descritores capazes de caracterizar tecidos, destacam-se aqueles oriundos da geometria fractal, ramo da matemática que estuda estruturas marcadas por complexidade, irregularidade e autossimilaridade, isto é, que exibem padrões semelhantes em diferentes escalas de observação.
+
+Ao contrário da geometria euclidiana, que descreve objetos regulares como retas, círculos e planos, a geometria fractal consegue modelar formas irregulares presentes na natureza, como o contorno de litorais, as ramificações de vasos sanguíneos e a organização de tecidos biológicos. % [CITAR]
+Por essa razão, ela vem sendo aplicada à análise de imagens médicas, nas quais alterações patológicas frequentemente modificam a complexidade e a regularidade das estruturas.
+
+Nesse sentido, os atributos fractais quantificam a complexidade e a organização espacial do conteúdo de uma imagem. Em amostras histológicas, essas medidas ajudam a evidenciar diferenças entre tecidos e, consequentemente, contribuem para sua classificação. Neste trabalho, são empregadas três delas — a dimensão fractal, a lacunaridade e a percolação —, todas calculadas de forma multiescala, conforme descrito a seguir.
+
+\subsubsection{Dimensão Fractal}
+\hspace{+15pt}
+
+A primeira dessas medidas, a dimensão fractal, expressa o quanto uma estrutura ocupa o espaço à medida que é observada em escalas progressivamente menores. Enquanto na geometria euclidiana as dimensões assumem valores inteiros, aqui elas podem ser fracionárias, refletindo o grau de complexidade e irregularidade do objeto.
+
+Para estimá-la em imagens, um dos métodos mais difundidos é a contagem de caixas (\textit{box-counting}). Nele, a imagem é recoberta por caixas de lado $r$, e registra-se o número $N(r)$ de caixas necessárias para cobrir a estrutura analisada. A dimensão fractal $D$ decorre, então, da relação:
+
+\begin{equation}
+D = \lim_{r \to 0} \frac{\log N(r)}{\log (1/r)}
+\end{equation}
+
+Na prática, como não é possível tomar $r$ infinitamente pequeno, $D$ é obtida pela inclinação da reta ajustada aos pontos de $\log N(r)$ em função de $\log(1/r)$ para diversos tamanhos de caixa. % [CITAR]
+
+\subsubsection{Lacunaridade}
+\hspace{+15pt}
+
+Contudo, a dimensão fractal sozinha não basta para descrever uma textura: duas imagens podem compartilhar o mesmo valor de $D$ e, ainda assim, apresentar arranjos espaciais bastante distintos. É nesse ponto que entra a lacunaridade, medida complementar que caracteriza a distribuição dos espaços vazios (lacunas) de uma estrutura. Valores elevados indicam um padrão heterogêneo, com lacunas grandes e irregulares, ao passo que valores reduzidos apontam para um padrão mais homogêneo e invariante à translação. % [CITAR]
+
+Seu cálculo costuma seguir o método das caixas deslizantes (\textit{gliding box}), em que uma caixa de lado $r$ percorre a imagem e, a cada posição, contabiliza a massa $M$, ou seja, a quantidade de pixels pertencentes à estrutura contida em seu interior. A partir da distribuição dessas massas, a lacunaridade na escala $r$ é dada por:
+
+\begin{equation}
+\Lambda(r) = \frac{E[M^2]}{\left(E[M]\right)^2}
+\end{equation}
+
+\noindent em que $E[M]$ e $E[M^2]$ correspondem, respectivamente, ao primeiro e ao segundo momentos dessa distribuição.
+
+\subsubsection{Percolação}
+\hspace{+15pt}
+
+Além da ocupação do espaço e da distribuição das lacunas, interessa também saber como os elementos de uma estrutura se conectam. Esse aspecto é abordado pela teoria da percolação, que estuda a formação de agrupamentos (\textit{clusters}) em meios aleatórios e a existência de caminhos contínuos que os atravessam. Transposta para imagens, essa ideia considera ``ocupados'' os pixels que satisfazem determinado critério; pixels ocupados e vizinhos, por sua vez, formam agrupamentos. Assim, diz-se que uma região percola quando há um agrupamento que a cruza de uma extremidade à outra. % [CITAR]
+
+Com base nessa análise, extraem-se diferentes medidas para cada escala, entre elas a quantidade média de agrupamentos, a razão entre a área do maior agrupamento e a área total da caixa e a proporção de caixas que percolam. No caso histológico, esses valores refletem a conectividade e a dispersão dos componentes do tecido.
+
+\subsubsection{Abordagem Multiescala e Imagens Coloridas}
+\hspace{+15pt}
+
+Vale ressaltar que os métodos apresentados foram concebidos, originalmente, para imagens binárias. Por isso, aplicá-los a amostras coloridas exige um critério que defina quais pixels integram a estrutura em cada caixa. Uma estratégia possível consiste em comparar a cor de cada pixel com a do pixel central da caixa, admitindo-o como parte da estrutura quando a distância entre ambas, no espaço RGB, não ultrapassa o tamanho $r$ da caixa. % [CITAR]
+Para essa comparação, podem ser adotadas diferentes métricas entre duas cores $p = (p_R, p_G, p_B)$ e $q = (q_R, q_G, q_B)$, como as distâncias Chessboard, Euclidiana e Manhattan:
+
+\begin{equation}
+d_{\text{Chessboard}}(p,q) = \max_{k \in \{R,G,B\}} |p_k - q_k|
+\end{equation}
+
+\begin{equation}
+d_{\text{Euclidiana}}(p,q) = \sqrt{\sum_{k \in \{R,G,B\}} (p_k - q_k)^2}
+\end{equation}
+
+\begin{equation}
+d_{\text{Manhattan}}(p,q) = \sum_{k \in \{R,G,B\}} |p_k - q_k|
+\end{equation}
+
+Além disso, cada medida é calculada para vários tamanhos de caixa $r$, caracterizando a abordagem multiescala. Dessa forma, em vez de um único número por descritor, obtém-se uma curva que mostra como ele varia conforme a escala. Por fim, os valores gerados para cada métrica de distância são concatenados em um único vetor unidimensional, que passa a representar a amostra.
+
+% ---------------------------------------------------------------------
+\subsection{Reshape}
+\hspace{+15pt}
+
+Obtido esse vetor, surge um problema de compatibilidade: os modelos profundos adotados neste trabalho foram projetados para receber entradas bidimensionais, e não sequências. Para contorná-lo, recorre-se ao reshape, operação que altera as dimensões de uma estrutura de dados sem modificar seus elementos. No processamento de imagens, ela permite reorganizar matrizes e vetores conforme o formato exigido pelos métodos de análise.
+
+Aqui, o reshape converte os descritores fractais em uma representação 2D. Para tanto, o vetor de atributos é interpretado como uma série $X = \{x_1, x_2, \dots, x_N\}$, de forma análoga a uma série temporal, o que permite aplicar técnicas originalmente desenvolvidas para esse tipo de dado. As subseções seguintes apresentam as transformações consideradas; em todas elas, a matriz resultante é, ao final, redimensionada para o tamanho de entrada esperado pelos modelos.
+
+\subsubsection{Reshape Sequencial}
+\hspace{+15pt}
+
+A alternativa mais direta consiste em distribuir os $N$ elementos do vetor, em ordem, pelas linhas e colunas de uma matriz cujo produto das dimensões seja igual a $N$. Embora preserve os valores originais, essa estratégia apresenta uma limitação: a vizinhança entre posições na matriz nem sempre tem significado, pois elementos adjacentes no vetor podem acabar em linhas distintas. As técnicas descritas a seguir buscam justamente superar essa limitação, codificando explicitamente as relações entre os elementos da série.
+
+\subsubsection{Campos Angulares de Gram (GASF e GADF)}
+\hspace{+15pt}
+
+Uma dessas técnicas são os Campos Angulares de Gram (GAF, do inglês \textit{Gramian Angular Fields}), que representam a série em coordenadas polares e constroem uma matriz a partir das relações angulares entre pares de pontos. % [CITAR]
+O primeiro passo é normalizar a série para o intervalo $[-1, 1]$, obtendo $\tilde{x}_i$; em seguida, cada valor é convertido em um ângulo:
+
+\begin{equation}
+\phi_i = \arccos(\tilde{x}_i), \quad -1 \leq \tilde{x}_i \leq 1
+\end{equation}
+
+Com esses ângulos, definem-se duas variantes. O GASF (\textit{Gramian Angular Summation Field}) emprega a soma trigonométrica dos ângulos, enquanto o GADF (\textit{Gramian Angular Difference Field}) recorre à diferença:
+
+\begin{equation}
+\text{GASF}_{ij} = \cos(\phi_i + \phi_j)
+\end{equation}
+
+\begin{equation}
+\text{GADF}_{ij} = \sin(\phi_i - \phi_j)
+\end{equation}
+
+Em ambos os casos, o resultado é uma matriz $N \times N$ cuja diagonal principal conserva informação dos valores originais, ao passo que os demais elementos expressam a correlação entre cada par de posições da série.
+
+\subsubsection{Campo de Transição de Markov (MTF)}
+\hspace{+15pt}
+
+Se os GAFs se baseiam em relações angulares, o Campo de Transição de Markov (MTF, do inglês \textit{Markov Transition Field}) adota outra perspectiva: ele codifica a dinâmica da série por meio das probabilidades de transição entre seus valores. % [CITAR]
+Inicialmente, os elementos são discretizados em $Q$ intervalos (quantis), e cada $x_i$ recebe o rótulo $q_i$ correspondente ao intervalo em que se encontra. Na sequência, constrói-se uma matriz de transição de Markov $W$, de dimensão $Q \times Q$, em que cada entrada $w_{ab}$ indica a probabilidade de um valor do intervalo $a$ ser sucedido por um valor do intervalo $b$ ao longo da série.
+
+Entretanto, a matriz $W$ desconsidera a posição dos elementos. Para recuperar essa informação, o MTF a expande para uma matriz $N \times N$, atribuindo a cada posição $(i,j)$ a probabilidade de transição entre os intervalos de $x_i$ e $x_j$:
+
+\begin{equation}
+M_{ij} = w_{q_i q_j}
+\end{equation}
+
+Com isso, o MTF preserva a dependência entre as posições da série e traduz, visualmente, o modo como os descritores se relacionam ao longo das escalas. A associação dessa representação aos atributos fractais constitui, portanto, o foco central deste trabalho.
+
+\subsubsection{Recurrence Plot}
+\hspace{+15pt}
+
+Por fim, o \textit{Recurrence Plot} (gráfico de recorrência), proposto inicialmente para visualizar a repetição de estados em sistemas dinâmicos, oferece uma terceira forma de codificação. % [CITAR]
+Ele indica, em uma matriz $N \times N$, os pares $(i,j)$ nos quais os estados $x_i$ e $x_j$ estão próximos entre si. Em sua versão binária, é definido por:
+
+\begin{equation}
+R_{ij} = \Theta\left(\varepsilon - \lVert x_i - x_j \rVert\right)
+\end{equation}
+
+\noindent em que $\Theta$ representa a função degrau de Heaviside e $\varepsilon$, um limiar de distância. Alternativamente, pode-se adotar a versão sem limiar, na qual cada entrada recebe diretamente o valor de $\lVert x_i - x_j \rVert$, o que gera uma imagem em tons contínuos e, consequentemente, mais rica em detalhes sobre a estrutura da série.
+
+% ---------------------------------------------------------------------
+\subsection{Deep Learning}
+\hspace{+15pt}
+
+Uma vez convertidos em imagens, os descritores podem ser processados por modelos de Deep Learning, ou aprendizado profundo. Trata-se de uma subárea do aprendizado de máquina baseada em redes neurais artificiais compostas por múltiplas camadas, capazes de aprender padrões diretamente a partir dos dados e amplamente empregadas em tarefas de classificação e reconhecimento de imagens.
+
+Diferentemente dos métodos tradicionais, essas redes constroem automaticamente representações hierárquicas: as camadas iniciais tendem a captar padrões simples, como bordas e variações de cor, enquanto as mais profundas os combinam em estruturas progressivamente mais complexas e abstratas. % [CITAR]
+
+Para que isso ocorra, o treinamento ajusta os parâmetros (pesos) da rede de modo a minimizar uma função de perda, que mede a discrepância entre a saída prevista e o rótulo verdadeiro. Esse ajuste é conduzido pelo algoritmo de retropropagação (\textit{backpropagation}), responsável por calcular o gradiente da perda em relação a cada parâmetro, em conjunto com um otimizador baseado em gradiente descendente. Em problemas de classificação, a função de perda mais comum é a entropia cruzada (\textit{cross-entropy}). % [CITAR]
+
+Todavia, por possuírem muitos parâmetros, redes profundas demandam grandes volumes de dados. Uma forma de mitigar essa exigência é a transferência de aprendizado (\textit{transfer learning}), na qual um modelo previamente treinado em uma base extensa, como a ImageNet, é reaproveitado e ajustado (\textit{fine-tuning}) para o problema de interesse. Essa estratégia mostra-se especialmente útil na área médica, em que os conjuntos de dados costumam ser reduzidos. % [CITAR]
+
+Assim, na classificação histológica, o aprendizado profundo pode reconhecer características dos tecidos e auxiliar na diferenciação entre as classes analisadas.
+
+% ---------------------------------------------------------------------
+\subsection{Redes Neurais}
+\hspace{+15pt}
+
+Na base desses modelos estão as redes neurais artificiais, compostas por unidades de processamento, denominadas neurônios, organizadas em camadas. Cada neurônio calcula uma soma ponderada de suas entradas, acrescenta um termo de viés e aplica uma função de ativação não linear:
+
+\begin{equation}
+y = f\left(\sum_{i=1}^{n} w_i x_i + b\right)
+\end{equation}
+
+\noindent em que $x_i$ são as entradas, $w_i$ os pesos, $b$ o viés e $f$ a função de ativação — por exemplo, a ReLU (\textit{Rectified Linear Unit}), definida por $f(z) = \max(0, z)$. É o empilhamento sucessivo dessas camadas que confere à rede a capacidade de aproximar funções complexas. % [CITAR]
+
+\subsubsection{Função Softmax}
+\hspace{+15pt}
+
+Em tarefas de classificação, a última camada da rede precisa converter suas saídas em uma decisão. Para isso, emprega-se a função Softmax, que transforma os valores produzidos pelo modelo em probabilidades associadas a cada classe. Dado o vetor de saídas $z = (z_1, \dots, z_K)$ para $K$ classes, a probabilidade atribuída à classe $k$ é:
+
+\begin{equation}
+\sigma(z)_k = \frac{e^{z_k}}{\sum_{j=1}^{K} e^{z_j}}
+\end{equation}
+
+Como os valores resultantes são positivos e somam 1, eles podem ser interpretados como o grau de confiança do modelo em cada classe, sendo a predição final aquela de maior probabilidade.
+
+\subsubsection{Redes Neurais Convolucionais e ResNet}
+\hspace{+15pt}
+
+Quando a entrada é uma imagem, uma das arquiteturas mais consolidadas são as Redes Neurais Convolucionais, ou CNNs (\textit{Convolutional Neural Networks}). Elas se apoiam na operação de convolução para identificar padrões visuais como bordas, texturas e formas.
+
+Nessa operação, pequenos filtros (\textit{kernels}) percorrem a imagem e, em cada posição, calculam uma soma ponderada dos pixels vizinhos, gerando mapas de características. Como um mesmo filtro é compartilhado por toda a imagem, o número de parâmetros diminui e a rede passa a reconhecer um padrão independentemente de onde ele apareça. Complementarmente, camadas de \textit{pooling} reduzem a dimensão espacial desses mapas, e, ao final, camadas totalmente conectadas realizam a classificação. % [CITAR]
+
+Dentre as arquiteturas convolucionais, sobressai a ResNet (\textit{Residual Network}), proposta por Kaiming He, Xiangyu Zhang, Shaoqing Ren e Jian Sun. % [CITAR]
+Sua motivação partiu de uma constatação: ao aprofundar as CNNs, observava-se o chamado problema da degradação, em que, a partir de certo ponto, acrescentar camadas passava a piorar o desempenho — inclusive no conjunto de treinamento —, em parte pela dificuldade de propagar o gradiente através de muitas camadas. Para contorná-lo, a ResNet introduz conexões residuais (\textit{skip connections}), que somam a entrada de um bloco diretamente à sua saída:
+
+\begin{equation}
+y = \mathcal{F}(x) + x
+\end{equation}
+
+\noindent em que $\mathcal{F}(x)$ representa a transformação aprendida pelas camadas do bloco. Desse modo, cada bloco precisa aprender apenas o resíduo em relação à entrada, o que facilita o treinamento de redes muito profundas.
+
+Entre suas variantes, a ResNet50, com 50 camadas, é amplamente adotada em classificação de imagens. Ela utiliza blocos do tipo \textit{bottleneck}, formados por convoluções $1\times1$, $3\times3$ e $1\times1$, que primeiro comprimem e depois restauram o número de canais, reduzindo o custo computacional.
+
+\subsubsection{Vision Transformers}
+\hspace{+15pt}
+
+Enquanto as CNNs analisam a imagem por regiões locais, os Vision Transformers (ViTs) propõem uma abordagem distinta, baseada na arquitetura Transformer e em mecanismos de atenção que relacionam diferentes regiões da imagem entre si.
+
+Concebida originalmente para o processamento de linguagem natural, a arquitetura Transformer tem como elemento central a autoatenção (\textit{self-attention}), que permite relacionar cada elemento de uma sequência a todos os demais. % [CITAR]
+Para tanto, cada elemento é projetado em três vetores — consulta ($Q$), chave ($K$) e valor ($V$) —, e a atenção é obtida por:
+
+\begin{equation}
+\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^{T}}{\sqrt{d_k}}\right)V
+\end{equation}
+
+\noindent em que $d_k$ é a dimensão dos vetores de chave. Esse cálculo ocorre em paralelo em várias ``cabeças'' de atenção (\textit{multi-head attention}), o que permite ao modelo captar diferentes tipos de relação simultaneamente.
+
+Para adaptar esse mecanismo a imagens, o ViT as divide em pequenos blocos, denominados \textit{patches}, tratando-os como os elementos de uma sequência. No ViT-B/16, por exemplo, uma imagem de $224 \times 224$ pixels é fragmentada em $14 \times 14 = 196$ \textit{patches} de $16 \times 16$ pixels. Cada fragmento é achatado e projetado linearmente em um vetor, ao qual se soma uma codificação posicional (\textit{positional embedding}) que informa sua localização original. Além disso, um vetor adicional de classificação (\textit{token} [CLS]) é inserido no início da sequência, e sua representação final é a que fundamenta a predição. % [CITAR]
+
+Graças a esse mecanismo, os ViTs relacionam todas as regiões da imagem desde a primeira camada, ao passo que as CNNs só ampliam seu campo de visão gradualmente. Em contrapartida, por não contarem com os vieses indutivos das convoluções, como a localidade e a invariância à translação, tendem a exigir mais dados de treinamento ou pré-treinamento em grandes bases.
+
+\subsubsection{Arquiteturas Híbridas}
+\hspace{+15pt}
+
+Considerando que CNNs e Transformers apresentam vantagens complementares, as arquiteturas híbridas procuram reunir o melhor de ambos. Um exemplo é a CoAtNet, que emprega blocos convolucionais nos estágios iniciais, capturando padrões locais com eficiência, e blocos de atenção nos estágios finais, modelando relações globais entre as regiões da imagem. % [CITAR]
+Com isso, busca-se conciliar a boa generalização das convoluções em bases menores com a maior capacidade de representação da atenção.
+
+% ---------------------------------------------------------------------
+\subsection{Combinação de Classificadores}
+\hspace{+15pt}
+
+Independentemente da arquitetura escolhida, um único modelo pode não aproveitar toda a informação disponível. Por esse motivo, recorre-se à combinação de classificadores (\textit{ensemble}), que une as predições de vários modelos em uma decisão final, geralmente mais robusta do que a de cada um isoladamente. O princípio é que modelos treinados com entradas diferentes tendem a errar em casos diferentes, de modo que a combinação compensa parte dessas falhas. % [CITAR]
+
+Uma das estratégias mais simples para isso é o voto suave (\textit{soft voting}), no qual as probabilidades fornecidas pela Softmax de $M$ modelos são combinadas por média:
+
+\begin{equation}
+\bar{p}_k = \frac{1}{M} \sum_{m=1}^{M} p_k^{(m)}
+\end{equation}
+
+\noindent em que $p_k^{(m)}$ é a probabilidade atribuída à classe $k$ pelo modelo $m$, sendo escolhida a classe de maior média. No presente trabalho, essa estratégia possibilita integrar modelos treinados com diferentes representações (imagem original, GASF, GADF, MTF e \textit{Recurrence Plot}) sem a necessidade de treinar uma nova rede para cada combinação.
+
+% ---------------------------------------------------------------------
+\subsection{Métricas de Avaliação}
+\hspace{+15pt}
+
+Por fim, para comparar o desempenho dos classificadores, emprega-se a matriz de confusão, que confronta as classes reais com as preditas. Em um problema binário, ela reúne os verdadeiros positivos ($VP$), verdadeiros negativos ($VN$), falsos positivos ($FP$) e falsos negativos ($FN$), a partir dos quais se derivam as seguintes métricas: % [CITAR]
+
+\begin{equation}
+\text{Acurácia} = \frac{VP + VN}{VP + VN + FP + FN}
+\end{equation}
+
+\begin{equation}
+\text{Precisão} = \frac{VP}{VP + FP} \qquad \text{Revocação} = \frac{VP}{VP + FN}
+\end{equation}
+
+\begin{equation}
+\text{F1-Score} = 2 \cdot \frac{\text{Precisão} \cdot \text{Revocação}}{\text{Precisão} + \text{Revocação}}
+\end{equation}
+
+A acurácia expressa a proporção total de acertos; no entanto, pode ser enganosa quando as classes estão desbalanceadas. Nesses casos, o F1-Score, por corresponder à média harmônica entre precisão e revocação, mostra-se mais adequado. Já em problemas multiclasse, essas métricas são calculadas para cada classe e combinadas por média simples (média \textit{macro}), conferindo o mesmo peso a todas elas.
+
+Adicionalmente, para obter uma estimativa mais confiável, adota-se a validação cruzada em $k$ partições (\textit{k-fold cross-validation}): o conjunto de dados é dividido em $k$ partes, e o modelo é treinado $k$ vezes, reservando a cada rodada uma parte distinta para teste e as demais para treinamento. O resultado final corresponde, então, à média das métricas obtidas nas $k$ execuções. % [CITAR]

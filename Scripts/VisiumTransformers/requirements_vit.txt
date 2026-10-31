@@ -1,0 +1,17 @@
+# Dependências dos scripts em Scripts/VisiumTransformers (vit.py, functions_vit.py,
+# orquestrador_vit.py, graficos_vit.py). Versões = as do .venv local que já roda.
+#
+# Servidor Linux com GPU: o torch do PyPI já vem com CUDA. Se o driver for antigo,
+# instale o torch antes pelo índice da sua versão de CUDA, ex.:
+#   pip install torch==2.13.0 torchvision==0.28.0 --index-url https://download.pytorch.org/whl/cu128
+torch==2.13.0
+torchvision==0.28.0
+timm==1.0.30
+huggingface_hub==2.0.0
+safetensors==0.8.0
+numpy==2.4.6
+pandas==3.0.5
+scipy==1.18.0
+scikit-learn==1.9.0
+matplotlib==3.11.0
+pillow==12.3.0

@@ -1,8 +1,9 @@
 import os
+import time
 from pathlib import Path
 
 from functions import (
-    rodar_dataset, rodar_ablacao_softmax, comparar_softmax, pasta_modelo,
+    rodar_dataset, salvar_tempo_csv, formatar_tempo, _CONTADOR, rodar_ablacao_softmax, comparar_softmax, pasta_modelo,
     caminho_cache_dataset, descobrir_canais_reshape,
 )
 from graficos import plotar_comparacao_combinacoes
@@ -27,6 +28,9 @@ def rodar_resnet(source, combinacoes_base, combinacoes_ablacao=None, pasta_saida
     pasta_saida = Path(pasta_saida)
     pasta_dataset = pasta_modelo(pasta_saida, source.name)
 
+    t_inicio_dataset = time.perf_counter()
+    folds_antes = _CONTADOR["folds_treinados"]
+
     resumo_combinacoes = rodar_dataset(source, combinacoes_base, pasta_saida=pasta_saida, **kwargs)
 
     if combinacoes_ablacao:
@@ -37,6 +41,16 @@ def rodar_resnet(source, combinacoes_base, combinacoes_ablacao=None, pasta_saida
             source, combinacoes_ablacao, combinacoes_base, pasta_saida=pasta_saida, **kwargs_ablacao
         )
         resumo_combinacoes.update(resumo_ablacao)
+
+    tempo_dataset = time.perf_counter() - t_inicio_dataset
+    folds_treinados = _CONTADOR["folds_treinados"] - folds_antes
+    if folds_treinados:
+        salvar_tempo_csv(
+            "resnet50", source.name, "TOTAL", "dataset", folds_treinados,
+            tempo_dataset, tempo_dataset, size_maxL=kwargs.get("size_maxL"), mtf_q=kwargs.get("mtf_q", 8),
+            caminho_csv=pasta_saida / "tempos.csv",
+        )
+    print(f"\nTempo total de execução do dataset {source.name}: {formatar_tempo(tempo_dataset)}")
 
     if not resumo_combinacoes:
         print(f"\nNenhuma combinação rodou com sucesso para {source.name} -- sem gráfico a gerar.")

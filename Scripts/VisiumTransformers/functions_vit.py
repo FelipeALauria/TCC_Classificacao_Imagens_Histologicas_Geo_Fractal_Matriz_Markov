@@ -5,6 +5,8 @@ import math
 import re
 import csv
 import json
+import shutil
+import time
 from datetime import date
 import numpy as np
 from PIL import Image
@@ -318,6 +320,7 @@ CAMPOS_METRICAS_CSV = [
     "f1",
     "auc",
     "perda_treino",
+    "tempo_s",
 ]
 
 
@@ -339,7 +342,7 @@ def _proximo_id_run(caminho_csv):
 def salva_metrica_csv(modelo, dataset, combinacao, precisao, recall, f1,
                        acuracia=None, auc=None, perda_treino=None, fold=None,
                        mtf_q=None, size_maxL=None, caminho_csv="metricas.csv",
-                       sobrescrever=False):
+                       sobrescrever=False, tempo_s=None):
     """Adiciona uma linha em metricas.csv (append; cria header se não
     existir). sobrescrever=True reescreve o arquivo do zero (id_run reinicia
     em 1).
@@ -356,6 +359,8 @@ def salva_metrica_csv(modelo, dataset, combinacao, precisao, recall, f1,
       combinações com o mesmo nome rodadas com maxL diferentes (ver
       SIZE_MAXL_LIST em orquestrador.py)
     - precisao/recall/f1: obrigatórias; acuracia/auc/perda_treino: opcionais
+    - tempo_s: segundos do fold (treino+teste; na ablação, só a combinação
+      do softmax); na linha "media", média dos folds medidos
 
     Retorna o id_run gerado.
     """
@@ -379,8 +384,11 @@ def salva_metrica_csv(modelo, dataset, combinacao, precisao, recall, f1,
         "f1": f1,
         "auc": auc if auc is not None else "",
         "perda_treino": perda_treino if perda_treino is not None else "",
+        "tempo_s": round(tempo_s, 2) if tempo_s is not None else "",
     }
 
+    if not sobrescrever:
+        _migrar_cabecalho_csv(caminho_csv, CAMPOS_METRICAS_CSV)
     with open(caminho_csv, mode=modo, newline="", encoding="utf-8") as arquivo:
         escritor = csv.DictWriter(arquivo, fieldnames=CAMPOS_METRICAS_CSV)
         if escreve_header:
@@ -388,6 +396,102 @@ def salva_metrica_csv(modelo, dataset, combinacao, precisao, recall, f1,
         escritor.writerow(linha)
 
     return id_run
+
+
+# ============================================================
+# REGISTRO DE TEMPO DE EXECUÇÃO
+# ============================================================
+
+CAMPOS_TEMPOS_CSV = [
+    "data", "modelo", "dataset", "size_maxL", "mtf_q", "combinacao", "tipo",
+    "n_folds_medidos", "tempo_proprio_s", "tempo_total_s", "tempo_total_hms",
+]
+
+# Folds treinados de fato no processo (usado pra só gravar o tempo total do
+# dataset quando algo foi treinado, e não numa rodada 100% resumida).
+_CONTADOR = {"folds_treinados": 0}
+
+
+def formatar_tempo(segundos):
+    """Segundos -> 'HH:MM:SS'."""
+    segundos = int(round(segundos))
+    return f"{segundos // 3600:02d}:{segundos % 3600 // 60:02d}:{segundos % 60:02d}"
+
+
+def _migrar_cabecalho_csv(caminho_csv, campos):
+    """CSV antigo sem alguma coluna nova (ex. tempo_s) é reescrito uma vez
+    com o cabeçalho atual (coluna nova vazia nas linhas antigas). Backup em
+    <arquivo>.bak_pre_tempo."""
+    caminho_csv = Path(caminho_csv)
+    if not caminho_csv.exists():
+        return
+    with open(caminho_csv, mode="r", newline="", encoding="utf-8") as arquivo:
+        leitor = csv.DictReader(arquivo)
+        if leitor.fieldnames == campos:
+            return
+        linhas = list(leitor)
+    backup = caminho_csv.with_name(caminho_csv.name + ".bak_pre_tempo")
+    if not backup.exists():
+        shutil.copy2(caminho_csv, backup)
+    with open(caminho_csv, mode="w", newline="", encoding="utf-8") as arquivo:
+        escritor = csv.DictWriter(arquivo, fieldnames=campos)
+        escritor.writeheader()
+        for linha in linhas:
+            escritor.writerow({c: linha.get(c, "") or "" for c in campos})
+
+
+def salvar_tempo_csv(modelo, dataset, combinacao, tipo, n_folds_medidos, tempo_proprio_s,
+                     tempo_total_s, size_maxL=None, mtf_q=None, caminho_csv="tempos.csv"):
+    """Adiciona uma linha em tempos.csv.
+
+    tipo:
+    - "treino": combinação de canal único (tempo de treinar os folds)
+    - "ensemble": combinação por softmax -- tempo_proprio_s = só a
+      combinação das probabilidades; tempo_total_s = isso + treino das
+      combinações-base envolvidas (vazio se alguma base não tiver tempo
+      completo registrado)
+    - "dataset": combinacao="TOTAL", execução inteira do dataset
+    """
+    caminho_csv = Path(caminho_csv)
+    escreve_header = not caminho_csv.exists()
+    linha = {
+        "data": date.today().strftime("%Y%m%d"),
+        "modelo": modelo,
+        "dataset": dataset,
+        "size_maxL": size_maxL if size_maxL is not None else "",
+        "mtf_q": mtf_q if mtf_q is not None else "",
+        "combinacao": combinacao,
+        "tipo": tipo,
+        "n_folds_medidos": n_folds_medidos,
+        "tempo_proprio_s": round(tempo_proprio_s, 2),
+        "tempo_total_s": round(tempo_total_s, 2) if tempo_total_s is not None else "",
+        "tempo_total_hms": formatar_tempo(tempo_total_s) if tempo_total_s is not None else "",
+    }
+    with open(caminho_csv, mode="a", newline="", encoding="utf-8") as arquivo:
+        escritor = csv.DictWriter(arquivo, fieldnames=CAMPOS_TEMPOS_CSV)
+        if escreve_header:
+            escritor.writeheader()
+        escritor.writerow(linha)
+
+
+def _tempo_total_bases(caminho_csv, modelo, dataset, nomes_base, size_maxL, mtf_q, n_folds):
+    """Soma o tempo_total_s mais recente de cada combinação-base (tipo
+    "treino", com os n_folds medidos) em tempos.csv; None se faltar alguma."""
+    caminho_csv = Path(caminho_csv)
+    if not caminho_csv.exists():
+        return None
+    alvo_maxl = str(size_maxL) if size_maxL is not None else ""
+    alvo_q = str(mtf_q) if mtf_q is not None else ""
+    ultimo = {}
+    with open(caminho_csv, mode="r", newline="", encoding="utf-8") as arquivo:
+        for linha in csv.DictReader(arquivo):
+            if (linha["tipo"] == "treino" and linha["modelo"] == modelo and linha["dataset"] == dataset
+                    and linha["size_maxL"] == alvo_maxl and linha["mtf_q"] == alvo_q
+                    and str(linha["n_folds_medidos"]) == str(n_folds)):
+                ultimo[linha["combinacao"]] = float(linha["tempo_total_s"])
+    if any(nome not in ultimo for nome in nomes_base):
+        return None
+    return sum(ultimo[nome] for nome in nomes_base)
 
 
 # ============================================================
@@ -877,6 +981,8 @@ def rodar_dataset(source, combinacoes_desejadas, modelo, rec_plot_size=None, MTF
         canais_lower = [c.lower() for c in canais]
         print(f"\n  {'-' * 50}\n  Combinação: {nome_combinacao}\n  {'-' * 50}")
 
+        t_inicio_combinacao = time.perf_counter()
+        tempos_folds = []
         try:
             lista_inputs = montar_input_canais(dados_canais, canais_lower, tamanho_padrao)
         except Exception as erro:
@@ -916,10 +1022,13 @@ def rodar_dataset(source, combinacoes_desejadas, modelo, rec_plot_size=None, MTF
                 y_treino, y_val, y_teste = labels[idx_treino], labels[idx_val], labels[idx_teste]
                 ids_teste = [ids[i] for i in idx_teste]
 
+                t_inicio_fold = time.perf_counter()
                 resultado = treinar_e_avaliar_fold(
                     X_treino, y_treino, X_val, y_val, X_teste, y_teste, ids_teste,
                     n_canais, n_classes, modelo, batch_size=batch_size, n_epocas=n_epocas, lr=lr,
                 )
+
+                tempo_fold = time.perf_counter() - t_inicio_fold
 
                 salvar_predicoes_csv(
                     resultado["ids_teste"], resultado["y_true"], resultado["y_prob_matriz"], resultado["y_pred"],
@@ -934,14 +1043,16 @@ def rodar_dataset(source, combinacoes_desejadas, modelo, rec_plot_size=None, MTF
                     modelo=modelo, dataset=source.name, combinacao=nome_combinacao,
                     precisao=metricas["precisao"], recall=metricas["recall"], f1=metricas["f1"],
                     acuracia=metricas["acuracia"], auc=metricas["auc"],
-                    perda_treino=resultado["loss_treino_final"], fold=i_fold,
+                    perda_treino=resultado["loss_treino_final"], fold=i_fold, tempo_s=tempo_fold,
                     mtf_q=mtf_q, size_maxL=size_maxL,
                     caminho_csv=pasta_saida / "metricas.csv",
                 )
 
                 metricas_folds.append(metricas)
+                tempos_folds.append(tempo_fold)
+                _CONTADOR["folds_treinados"] += 1
                 print(f"    Fold {i_fold}: acc={metricas['acuracia']:.4f} f1={metricas['f1']:.4f} "
-                      f"auc={metricas['auc']:.4f}")
+                      f"auc={metricas['auc']:.4f} | tempo={formatar_tempo(tempo_fold)}")
             except Exception as erro:
                 print(f"    [erro no fold {i_fold} de '{nome_combinacao}' em {source.name}, "
                       f"pulando essa combinação: {erro}]")
@@ -964,7 +1075,18 @@ def rodar_dataset(source, combinacoes_desejadas, modelo, rec_plot_size=None, MTF
                 acuracia=media["acuracia"], auc=media["auc"], fold="media",
                 mtf_q=mtf_q, size_maxL=size_maxL,
                 caminho_csv=pasta_saida / "metricas.csv",
+                tempo_s=float(np.mean(tempos_folds)) if tempos_folds else None,
             )
+
+        if tempos_folds:
+            tempo_total = time.perf_counter() - t_inicio_combinacao
+            salvar_tempo_csv(
+                modelo, source.name, nome_combinacao, "treino", len(tempos_folds),
+                tempo_total, tempo_total, size_maxL=size_maxL, mtf_q=mtf_q,
+                caminho_csv=pasta_saida / "tempos.csv",
+            )
+            print(f"\n  Tempo total ({nome_combinacao}, {len(tempos_folds)} folds treinados): "
+                  f"{formatar_tempo(tempo_total)}")
 
         resumo_combinacoes[nome_combinacao] = (media, desvio)
         print(f"\n  Média ± desvio padrão ({nome_combinacao}, {len(folds)} folds):")
@@ -1053,6 +1175,7 @@ def rodar_ablacao_softmax(source, combinacoes_ablacao, combinacoes_base, modelo,
 
         folds_prontos = _carregar_predicoes_cache(caminho_predicoes, nome_combinacao)
         metricas_folds = []
+        tempos_folds = []
 
         for i_fold in range(1, n_folds + 1):
             if i_fold in folds_prontos:
@@ -1070,6 +1193,7 @@ def rodar_ablacao_softmax(source, combinacoes_ablacao, combinacoes_base, modelo,
                       f"ids de teste divergem entre as combinações-base -- splits desalinhados]")
                 continue
 
+            t_inicio_fold = time.perf_counter()
             y_prob_matriz = np.mean([linha["y_prob_matriz"] for linha in linhas_base], axis=0)
             y_pred = np.argmax(y_prob_matriz, axis=1)
             y_true = linhas_base[0]["y_true"]
@@ -1080,12 +1204,14 @@ def rodar_ablacao_softmax(source, combinacoes_ablacao, combinacoes_base, modelo,
             )
 
             metricas = calcular_metricas(y_true, y_pred, y_prob_matriz, y_prob_matriz.shape[1])
+            tempo_fold = time.perf_counter() - t_inicio_fold
+            tempos_folds.append(tempo_fold)
             salva_metrica_csv(
                 modelo=f"ensemble_softmax_{modelo}", dataset=source.name, combinacao=nome_combinacao,
                 precisao=metricas["precisao"], recall=metricas["recall"], f1=metricas["f1"],
                 acuracia=metricas["acuracia"], auc=metricas["auc"], fold=i_fold,
                 mtf_q=mtf_q, size_maxL=size_maxL,
-                caminho_csv=caminho_metricas,
+                caminho_csv=caminho_metricas, tempo_s=tempo_fold,
             )
             metricas_folds.append(metricas)
             print(f"    [ablação] {nome_combinacao} fold {i_fold}: acc={metricas['acuracia']:.4f} "
@@ -1104,7 +1230,22 @@ def rodar_ablacao_softmax(source, combinacoes_ablacao, combinacoes_base, modelo,
                 acuracia=media["acuracia"], auc=media["auc"], fold="media",
                 mtf_q=mtf_q, size_maxL=size_maxL,
                 caminho_csv=caminho_metricas,
+                tempo_s=float(np.mean(tempos_folds)) if tempos_folds else None,
             )
+
+        if tempos_folds:
+            caminho_tempos = Path(pasta_saida) / "tempos.csv"
+            tempo_proprio = float(np.sum(tempos_folds))
+            tempo_bases = _tempo_total_bases(
+                caminho_tempos, modelo, source.name, nomes_base, size_maxL, mtf_q, n_folds
+            )
+            tempo_total = tempo_proprio + tempo_bases if tempo_bases is not None else None
+            salvar_tempo_csv(
+                f"ensemble_softmax_{modelo}", source.name, nome_combinacao, "ensemble", len(tempos_folds),
+                tempo_proprio, tempo_total, size_maxL=size_maxL, mtf_q=mtf_q, caminho_csv=caminho_tempos,
+            )
+            print(f"  [ablação] Tempo ({nome_combinacao}): combinação {tempo_proprio:.2f}s | "
+                  f"com treino das bases: {formatar_tempo(tempo_total) if tempo_total is not None else 'sem tempo das bases'}")
 
         resumo_combinacoes[nome_combinacao] = (media, desvio)
         print(f"\n  [ablação] Média ± desvio padrão ({nome_combinacao}, {n_folds} folds):")

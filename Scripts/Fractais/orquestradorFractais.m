@@ -12,9 +12,9 @@
 % e Scripts/Reshape no path (addpath), e rodar (F5).
 
 BASE_DIR = 'C:\Users\felip\Desktop\Facul\TCC\Scripts_Datasets\Datasets\Imagens Histológicas';
-DATASETS = {'CR-SameRes', 'DIS','LA', 'LG', 'NHL', 'UCSB'};
-MAXL_LIST = [7, 11, 15, 25, 41, 65];
-MTF_Q_LIST = [128, 256, 512, 1024, 2048, 4096, 8192, 16384];
+DATASETS = {'CR-SameRes', 'DIS','LA', 'LG', 'UCSB'};  % 
+MAXL_LIST = [7, 11, 15, 25, 41, 65]; % 
+MTF_Q_LIST = [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384];
 RESHAPES = {'GASF', 'GADF', 'MTF', 'RecPlot'};
 
 for d = 1:length(DATASETS)
