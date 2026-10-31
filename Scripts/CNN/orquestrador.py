@@ -20,8 +20,8 @@ TODOS_DATASETS = descobrir_datasets(BASE_DIR)
 # Duas listas fixas -- troque DATASETS_DESEJADOS pra escolher qual rodar.
 # CR não é mais usado (decisão de 31/08/2026). LG entra como binário (só 2
 # pastas, "1"/"2") e DIS/LA/NHL como multiclasse nativo.
-DATASETS_BINARIOS = ["LG", "UCSB"] #, "CR-SameRes LG UCSB"
-DATASETS_MULTICLASSE = ["DIS", "LA"] # , "DIS LA NHL"
+DATASETS_BINARIOS = ["CR-SameRes", "LG", "UCSB"]
+DATASETS_MULTICLASSE = ["DIS", "LA", "NHL"]
 
 ESCOLHA = 1 # 1-Binários 2-Multiclasse
 
@@ -57,30 +57,29 @@ COMBINACOES_BASE = {
 # Descomente/comente as combinações que quiser incluir na rodada:
 # ------------------------------------------------------------
 COMBINACOES_ABLACAO = {
-    # "img+recplot": ["img", "recplot"],
+    "img+recplotxx": ["img", "recplot"],
     "img+mtf": ["img", "mtf"],
-    # "img+gasf": ["img", "gasf"],
-    # "img+gadf": ["img", "gadf"],
+    "img+gasf": ["img", "gasf"],
+    "img+gadf": ["img", "gadf"],
     "img+recplot+mtf": ["img", "recplot", "mtf"],
-    # "img+recplot+gasf": ["img", "recplot", "gasf"],
-    # "img+recplot+gadf": ["img", "recplot", "gadf"],
+    "img+recplot+gasf;": ["img", "recplot", "gadf"],
     "img+mtf+gasf": ["img", "mtf", "gasf"],
     "img+mtf+gadf": ["img", "mtf", "gadf"],
-    # "img+gasf+gadf": ["img", "gasf", "gadf"],
+    "img+gasf+gadf": ["img", "gasf", "gadf"],
     "img+recplot+mtf+gasf": ["img", "recplot", "mtf", "gasf"],
     "img+recplot+mtf+gadf": ["img", "recplot", "mtf", "gadf"],
-    # "img+recplot+gasf+gadf": ["img", "recplot", "gasf", "gadf"],
+    "img+recplot+gasf+gadf": ["img", "recplot", "gasf", "gadf"],
     "img+mtf+gasf+gadf": ["img", "mtf", "gasf", "gadf"],
     "img+recplot+mtf+gasf+gadf": ["img", "recplot", "mtf", "gasf", "gadf"],
     "recplot+mtf": ["recplot", "mtf"],
-    # "recplot+gasf": ["recplot", "gasf"],
-    # "recplot+gadf": ["recplot", "gadf"],
+    "recplot+gasf": ["recplot", "gasf"],
+    "recplot+gadf": ["recplot", "gadf"],
     "mtf+gasf": ["mtf", "gasf"],
     "mtf+gadf": ["mtf", "gadf"],
-    # "gasf+gadf": ["gasf", "gadf"],
+    "gasf+gadf": ["gasf", "gadf"],
     "recplot+mtf+gasf": ["recplot", "mtf", "gasf"],
     "recplot+mtf+gadf": ["recplot", "mtf", "gadf"],
-    # "recplot+gasf+gadf": ["recplot", "gasf", "gadf"],
+    "recplot+gasf+gadf": ["recplot", "gasf", "gadf"],
     "mtf+gasf+gadf": ["mtf", "gasf", "gadf"],
     "recplot+mtf+gasf+gadf": ["recplot", "mtf", "gasf", "gadf"],
 }
@@ -96,7 +95,7 @@ COMBINACOES_ABLACAO = {
 # automaticamente (ver caminho_cache_dataset em functions.py); metricas.csv
 # agora grava size_maxL e mtf_q em colunas próprias pra dar pra distinguir
 # as linhas depois.
-SIZE_MAXL_LIST = ["maxL15", "maxL25", "maxL41"]
+SIZE_MAXL_LIST = ["maxL7", "maxL11", "maxL15", "maxL25", "maxL41", "maxL65"]
 MTF_Q_LIST = [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384]
 REC_PLOT_SIZE = "rp"
 
