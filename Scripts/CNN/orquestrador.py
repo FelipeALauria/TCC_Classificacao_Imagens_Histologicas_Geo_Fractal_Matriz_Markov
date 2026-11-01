@@ -23,7 +23,7 @@ TODOS_DATASETS = descobrir_datasets(BASE_DIR)
 DATASETS_BINARIOS = ["CR-SameRes", "LG", "UCSB"]
 DATASETS_MULTICLASSE = ["DIS", "LA", "NHL"]
 
-ESCOLHA = 1 # 1-Binários 2-Multiclasse
+ESCOLHA = 2 # 1-Binários 2-Multiclasse
 
 if ESCOLHA == 1:
     DATASETS_DESEJADOS = DATASETS_BINARIOS
