@@ -9,6 +9,9 @@ são os mesmos da ResNet: se o splits_kfold de um dataset/config já existir
 em Scripts/CNN/METRICAS/, ele é reaproveitado (só leitura).
 """
 import os
+import sys
+import traceback
+from datetime import datetime
 from pathlib import Path
 
 from functions_vit import descobrir_datasets
@@ -25,13 +28,64 @@ RAIZ_REPO = Path(__file__).resolve().parents[2]
 BASE_DIR = Path(os.environ.get("TCC_DATASETS", RAIZ_REPO / "Datasets" / "Imagens Histológicas"))
 PASTA_SAIDA = Path(__file__).resolve().parent / "METRICAS"
 
+
+# ============================================================
+# LOG: tudo que aparece no console vai pra METRICAS/logs/execucao_<data>.log;
+# erros/avisos/pulos (e tracebacks) também vão pra METRICAS/logs/erros.log
+# ============================================================
+
+_PADROES_ERRO = ("[erro", "[pulando", "pulando dataset", "AVISO", "Traceback", "Error")
+_ARQ_ERROS = None
+
+
+class _Tee:
+    """Escreve no console e no log da execução; linhas de erro também em erros.log.
+    tudo_erro=True (stderr): toda linha vai pra erros.log."""
+
+    def __init__(self, original, arq_execucao, tudo_erro=False):
+        self.original, self.arq_execucao, self.tudo_erro = original, arq_execucao, tudo_erro
+        self.buffer = ""
+
+    def write(self, texto):
+        self.original.write(texto)
+        self.arq_execucao.write(texto)
+        self.buffer += texto
+        *linhas, self.buffer = self.buffer.split("\n")
+        for linha in linhas:
+            if self.tudo_erro or any(p in linha for p in _PADROES_ERRO):
+                _ARQ_ERROS.write(f"{datetime.now():%Y-%m-%d %H:%M:%S}  {linha}\n")
+
+    def flush(self):
+        self.original.flush()
+        self.arq_execucao.flush()
+
+
+def configurar_log(pasta_logs):
+    global _ARQ_ERROS
+    pasta_logs = Path(pasta_logs)
+    pasta_logs.mkdir(parents=True, exist_ok=True)
+    caminho_execucao = pasta_logs / f"execucao_{datetime.now():%Y%m%d_%H%M%S}.log"
+    arq_execucao = open(caminho_execucao, "a", encoding="utf-8", buffering=1)
+    _ARQ_ERROS = open(pasta_logs / "erros.log", "a", encoding="utf-8", buffering=1)
+    _ARQ_ERROS.write(f"\n===== execução {datetime.now():%Y-%m-%d %H:%M:%S} ({Path(__file__).name}) =====\n")
+    sys.stdout = _Tee(sys.stdout, arq_execucao)
+    sys.stderr = _Tee(sys.stderr, arq_execucao, tudo_erro=True)
+    print(f"[log] console em {caminho_execucao} | erros em {pasta_logs / 'erros.log'}")
+
+
+def registrar_traceback():
+    """Chamar dentro de um except: grava o traceback completo em erros.log."""
+    if _ARQ_ERROS:
+        _ARQ_ERROS.write(traceback.format_exc())
+
 TODOS_DATASETS = descobrir_datasets(BASE_DIR)
 
-DATASETS_BINARIOS = ["CR-SameRes"]  # , "LG", "UCSB"
-DATASETS_MULTICLASSE = ["DIS", "LA"]  # , "NHL"
+DATASETS_BINARIOS = ["CR-SameRes", "LG", "UCSB"]
+DATASETS_MULTICLASSE = ["DIS", "LA", "NHL"]
+DATASETS_LACUNAS = ["LG", "UCSB", "NHL"]  # sem nenhum resultado ainda (03/11/2026)
 
-ESCOLHA = 2  # 1-Binários 2-Multiclasse
-DATASETS_DESEJADOS = DATASETS_BINARIOS if ESCOLHA == 1 else DATASETS_MULTICLASSE
+ESCOLHA = 3  # 1-Binários 2-Multiclasse 3-Lacunas
+DATASETS_DESEJADOS = {1: DATASETS_BINARIOS, 2: DATASETS_MULTICLASSE, 3: DATASETS_LACUNAS}[ESCOLHA]
 DATASETS = [d for d in DATASETS_DESEJADOS if d in TODOS_DATASETS]
 
 # ------------------------------------------------------------
@@ -85,6 +139,8 @@ COMBINACOES_ABLACAO = {
 }
 
 SIZE_MAXL_LIST = ["maxL15", "maxL25", "maxL41"]
+# dataset com maxL próprio (substitui SIZE_MAXL_LIST): NHL só tem reshape em maxL65
+SIZE_MAXL_POR_DATASET = {"NHL": ["maxL65"]}
 MTF_Q_LIST = [128, 256, 512]
 REC_PLOT_SIZE = "rp"
 
@@ -107,6 +163,7 @@ def rodar_todos_datasets(nomes_datasets, modelo, hiperparametros, **kwargs):
                 resumo_geral[nome_dataset] = resumo
         except Exception as erro:
             print(f"\n[erro rodando '{nome_dataset}' com {modelo}, pulando pro próximo: {erro}]")
+            registrar_traceback()
             datasets_com_erro.append(nome_dataset)
 
     print(f"\n{'#' * 60}\nRESUMO GERAL ({modelo}) -- {len(resumo_geral)}/{len(nomes_datasets)} "
@@ -124,15 +181,21 @@ def rodar_todos_datasets(nomes_datasets, modelo, hiperparametros, **kwargs):
 
 
 if __name__ == "__main__":
+    configurar_log(PASTA_SAIDA / "logs")
+
+if __name__ == "__main__":
     print(f"Datasets: {DATASETS}")
     print(f"Modelos: {list(MODELOS)}")
-    print(f"maxL: {SIZE_MAXL_LIST} | MTF_Q: {MTF_Q_LIST}")
+    maxl_por_dataset = {d: SIZE_MAXL_POR_DATASET.get(d, SIZE_MAXL_LIST) for d in DATASETS}
+    todos_maxl = list(dict.fromkeys(m for lista in maxl_por_dataset.values() for m in lista))
+    print(f"maxL: {maxl_por_dataset} | MTF_Q: {MTF_Q_LIST}")
 
     for modelo, hiperparametros in MODELOS.items():
-        for size_maxL in SIZE_MAXL_LIST:
+        for size_maxL in todos_maxl:
+            datasets_maxl = [d for d in DATASETS if size_maxL in maxl_por_dataset[d]]
             for mtf_q in MTF_Q_LIST:
-                print(f"\n{'@' * 60}\n{modelo} | {size_maxL} | MTF_Q = {mtf_q}\n{'@' * 60}")
+                print(f"\n{'@' * 60}\n{modelo} | {size_maxL} | MTF_Q = {mtf_q} | {datasets_maxl}\n{'@' * 60}")
                 rodar_todos_datasets(
-                    DATASETS, modelo, hiperparametros,
+                    datasets_maxl, modelo, hiperparametros,
                     size_maxL=size_maxL, mtf_q=mtf_q, rec_plot_size=REC_PLOT_SIZE,
                 )
